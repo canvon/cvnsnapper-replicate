@@ -44,19 +44,24 @@ do
 	echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
 
 	SNAPSHOT_INFO="$SNAPSHOT_NUMBER/info.xml"
-	if ! [ -f "$SNAPSHOT_INFO" ]
-	then
-		echo "No info.xml, skipped."
-		warn "Skipping snapper snapshot number $SNAPSHOT_NUMBER due to missing info.xml!"
-		continue
-	fi
+	[ -f "$SNAPSHOT_INFO" ] || { echo "(error)"; die "Missing info.xml at snapper snapshot number $SNAPSHOT_NUMBER"; }
+
+	SNAPSHOT_NUM=$(sed -n -e 's#^.*<num>\([^<]*\)</num>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER num: sed failed"; }
+	[ "$SNAPSHOT_NUMBER" = "$SNAPSHOT_NUM" ] || { echo "(error)"; die "Meta-data \"num\" does not match at snapper snapshot number $SNAPSHOT_NUMBER "; }
+
+	SNAPSHOT_DATE=$(sed -n -e 's#^.*<date>\([^<]*\)</date>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER date: sed failed"; }
+	SNAPSHOT_TYPE=$(sed -n -e 's#^.*<type>\([^<]*\)</type>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER type: sed failed"; }
+	SNAPSHOT_UID=$(sed -n -e 's#^.*<uid>\([^<]*\)</uid>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER uid: sed failed"; }
+	SNAPSHOT_DESCRIPTION=$(sed -n -e 's#^.*<description>\([^<]*\)</description>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER description: sed failed"; }
 
 	SNAPSHOT_CLEANUP=$(sed -n -e 's#^.*<cleanup>\([^<]*\)</cleanup>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER cleanup policy: sed failed"; }
 	if [ "$SNAPSHOT_CLEANUP" = "timeline" ]
 	then
-		echo "cleanup policy \"$SNAPSHOT_CLEANUP\", skipped."
+		echo "(Skipping due to cleanup policy \"$SNAPSHOT_CLEANUP\": Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\")"
 		continue
 	fi
+
+	echo -n "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\": "
 
 	echo "Would btrfs send, but not implemented, yet"
 done < <(ls -1d [1-9]* | sort -n)
