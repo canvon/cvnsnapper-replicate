@@ -39,7 +39,7 @@ START_SNAPSHOT_NUMBER=
 while read SNAPSHOT_NUMBER
 do
 	# Skip snapshots silently until start, if start was given.
-	[ -n "$START_SNAPSHOT_NUMBER" ] && [ "$SNAPSHOT_NUMBER" -lt "$START_SNAPSHOT_NUMBER"] && continue
+	[ -n "$START_SNAPSHOT_NUMBER" ] && [ "$SNAPSHOT_NUMBER" -lt "$START_SNAPSHOT_NUMBER" ] && continue
 
 	echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
 
