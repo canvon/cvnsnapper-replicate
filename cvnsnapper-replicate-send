@@ -1,0 +1,12 @@
+#!/bin/bash
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+die "Not implemented, yet"
