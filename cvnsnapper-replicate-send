@@ -99,7 +99,7 @@ do
 		OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}-full.btrfs_send"
 		[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
 
-		echo btrfs send -f "$OUTPUT_FILE" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing full send of snapshot number $SNAPSHOT_NUMBER: btrfs send failed"; }
+		btrfs send -f "$OUTPUT_FILE" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing full send of snapshot number $SNAPSHOT_NUMBER: btrfs send failed"; }
 	else
 		INPUT_PARENT_SNAPSHOT="$LAST_SNAPSHOT_NUMBER/snapshot"
 		[ -d "$INPUT_PARENT_SNAPSHOT" ] || die "No parent snapshot under last snapshot number $LAST_SNAPSHOT_NUMBER"
@@ -109,7 +109,7 @@ do
 		OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}.btrfs_send"
 		[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
 
-		echo btrfs send -f "$OUTPUT_FILE" -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing incremental send of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send failed"; }
+		btrfs send -f "$OUTPUT_FILE" -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing incremental send of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send failed"; }
 	fi
 	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
