@@ -10,7 +10,7 @@ die() {
 }
 
 
-USAGE="Usage: $0 OUTPUT_PREFIX [START_SNAPSHOT_NUMBER]"
+USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
 
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
 do
@@ -29,17 +29,29 @@ done
 [ "$#" -ge 1 ] || die "$USAGE"
 
 OUTPUT_PREFIX="$1"; shift
-START_SNAPSHOT_NUMBER=
+LAST_SNAPSHOT_NUMBER_ARG=
 
-[ "$#" -ge 1 ] && { START_SNAPSHOT_NUMBER="$1"; shift; }
+[ "$#" -ge 1 ] && { LAST_SNAPSHOT_NUMBER_ARG="$1"; shift; }
 
 [ "$#" -eq 0 ] || die "Too many arguments -- $USAGE"
 
 
+LAST_SNAPSHOT_NUMBER_ARG_REACHED=0
+LAST_SNAPSHOT_NUMBER=
+
 while read SNAPSHOT_NUMBER
 do
-	# Skip snapshots silently until start, if start was given.
-	[ -n "$START_SNAPSHOT_NUMBER" ] && [ "$SNAPSHOT_NUMBER" -lt "$START_SNAPSHOT_NUMBER" ] && continue
+	# Skip snapshots silently until last-arg, if last-arg was given.
+	if [ -n "$LAST_SNAPSHOT_NUMBER_ARG" ] && [ "$LAST_SNAPSHOT_NUMBER_ARG_REACHED" -eq 0 ]
+	then
+		[ "$SNAPSHOT_NUMBER" -lt "$LAST_SNAPSHOT_NUMBER_ARG" ] && continue
+
+		[ "$SNAPSHOT_NUMBER" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || die "Last snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\" missing"
+
+		LAST_SNAPSHOT_NUMBER_ARG_REACHED=1
+		LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
+		continue
+	fi
 
 	echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
 
@@ -63,7 +75,15 @@ do
 
 	echo -n "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\": "
 
-	echo "Would btrfs send, but not implemented, yet"
+	if [ -z "$LAST_SNAPSHOT_NUMBER" ]
+	then
+		echo -n "Full send: "
+		echo "Would btrfs send without parent, but not implemented, yet"
+	else
+		echo -n "Incremental send with parent $LAST_SNAPSHOT_NUMBER: "
+		echo "Would btrfs send with parent $LAST_SNAPSHOT_NUMBER, but not implemented, yet"
+	fi
+	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
 
 exit 0
