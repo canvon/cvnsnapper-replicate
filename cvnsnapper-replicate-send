@@ -46,12 +46,21 @@ do
 	then
 		[ "$SNAPSHOT_NUMBER" -lt "$LAST_SNAPSHOT_NUMBER_ARG" ] && continue
 
-		[ "$SNAPSHOT_NUMBER" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || die "Last snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\" missing"
+		[ "$SNAPSHOT_NUMBER" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || die "Last snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\" missing"
 
 		LAST_SNAPSHOT_NUMBER_ARG_REACHED=1
 		LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
+
+		# Sanity-check before trying to use this as parent later.
+		[ -d "$SNAPSHOT_NUMBER/snapshot" ] || die "Snapshot under last snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\" missing"
+
 		continue
 	fi
+
+
+	#
+	# Consider snapshot number verbosely, and possibly skip.
+	#
 
 	echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
 
@@ -73,15 +82,34 @@ do
 		continue
 	fi
 
-	echo -n "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\": "
+	echo "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\""
+
+
+	#
+	# Do the btrfs send operation.
+	#
+
+	INPUT_SNAPSHOT="$SNAPSHOT_NUMBER/snapshot"
+	[ -d "$INPUT_SNAPSHOT" ] || die "No input snapshot under snapshot number $SNAPSHOT_NUMBER"
 
 	if [ -z "$LAST_SNAPSHOT_NUMBER" ]
 	then
 		echo -n "Full send: "
-		echo "Would btrfs send without parent, but not implemented, yet"
+
+		OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}-full.btrfs_send"
+		[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
+
+		echo btrfs send -f "$OUTPUT_FILE" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing full send of snapshot number $SNAPSHOT_NUMBER: btrfs send failed"; }
 	else
+		INPUT_PARENT_SNAPSHOT="$LAST_SNAPSHOT_NUMBER/snapshot"
+		[ -d "$INPUT_PARENT_SNAPSHOT" ] || die "No parent snapshot under last snapshot number $LAST_SNAPSHOT_NUMBER"
+
 		echo -n "Incremental send with parent $LAST_SNAPSHOT_NUMBER: "
-		echo "Would btrfs send with parent $LAST_SNAPSHOT_NUMBER, but not implemented, yet"
+
+		OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}.btrfs_send"
+		[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
+
+		echo btrfs send -f "$OUTPUT_FILE" -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing incremental send of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send failed"; }
 	fi
 	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
