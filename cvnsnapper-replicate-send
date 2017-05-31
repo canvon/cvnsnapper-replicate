@@ -9,6 +9,7 @@ die() {
 	exit 1
 }
 
+
 USAGE="Usage: $0 OUTPUT_PREFIX [START_SNAPSHOT_NUMBER]"
 
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
@@ -34,4 +35,30 @@ START_SNAPSHOT_NUMBER=
 
 [ "$#" -eq 0 ] || die "Too many arguments -- $USAGE"
 
-die "Not implemented, yet"
+
+while read SNAPSHOT_NUMBER
+do
+	# Skip snapshots silently until start, if start was given.
+	[ -n "$START_SNAPSHOT_NUMBER" ] && [ "$SNAPSHOT_NUMBER" -lt "$START_SNAPSHOT_NUMBER"] && continue
+
+	echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
+
+	SNAPSHOT_INFO="$SNAPSHOT_NUMBER/info.xml"
+	if ! [ -f "$SNAPSHOT_INFO" ]
+	then
+		echo "No info.xml, skipped."
+		warn "Skipping snapper snapshot number $SNAPSHOT_NUMBER due to missing info.xml!"
+		continue
+	fi
+
+	SNAPSHOT_CLEANUP=$(sed -n -e 's#^.*<cleanup>\([^<]*\)</cleanup>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER cleanup policy: sed failed"; }
+	if [ "$SNAPSHOT_CLEANUP" = "timeline" ]
+	then
+		echo "cleanup policy \"$SNAPSHOT_CLEANUP\", skipped."
+		continue
+	fi
+
+	echo "Would btrfs send, but not implemented, yet"
+done < <(ls -1d [1-9]* | sort -n)
+
+exit 0
