@@ -9,4 +9,29 @@ die() {
 	exit 1
 }
 
+USAGE="Usage: $0 OUTPUT_PREFIX [START_SNAPSHOT_NUMBER]"
+
+while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+do
+	case "$1" in
+	--help|--usage)
+		shift
+		echo "$USAGE"
+		exit 0
+		;;
+	*)
+		die "Invalid option \"$1\""
+		;;
+	esac
+done
+
+[ "$#" -ge 1 ] || die "$USAGE"
+
+OUTPUT_PREFIX="$1"; shift
+START_SNAPSHOT_NUMBER=
+
+[ "$#" -ge 1 ] && { START_SNAPSHOT_NUMBER="$1"; shift; }
+
+[ "$#" -eq 0 ] || die "Too many arguments -- $USAGE"
+
 die "Not implemented, yet"
