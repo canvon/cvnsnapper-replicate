@@ -11,6 +11,7 @@ die() {
 
 
 INFIX=
+DIFF_INFIX=
 
 USAGE="Usage: $0 [--infix=INFIX] SUBVOL [...]"
 
@@ -29,12 +30,19 @@ do
 		shift
 		echo "Using infix \"$INFIX\""
 		;;
+	--diff-infix=*)
+		DIFF_INFIX=${1#--diff-infix=}
+		shift
+		echo "Will diff against infix \"$DIFF_INFIX\""
+		;;
 	-*)
 		die "Unrecognized option \"$1\""
 		;;
 	esac
 done
 
+
+RET=0
 
 for SUBVOL
 do
@@ -65,6 +73,29 @@ do
 	) || die "Subshell with cd and find exited unsuccessfully (with exit code $?)"
 
 
+	if [ -n "$DIFF_INFIX" ]
+	then
+		echo "Diffing meta-data of subvol \"$SUBVOL\" with infix \"$DIFF_INFIX\" against infix \"$INFIX\"..."
+
+		SUBVOL_STAT_LOG_PREV="${SUBVOL}${DIFF_INFIX}.stat.log"
+		SUBVOL_CHECKSUMS_FILE_PREV="${SUBVOL}${DIFF_INFIX}.sha256"
+
+		echo "Diffing checksums:"
+		if ! diff "$SUBVOL_CHECKSUMS_FILE_PREV" "$SUBVOL_CHECKSUMS_FILE"
+		then
+			warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
+			[ "$RET" -lt 1 ] && RET=1
+		fi
+
+		echo "Diffing stat results:"
+		if ! diff -U8 "$SUBVOL_STAT_LOG_PREV" "$SUBVOL_STAT_LOG"
+		then
+			warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
+			[ "$RET" -lt 1 ] && RET=1
+		fi
+	fi
+
+
 	exec {SUBVOL_CHECKSUMS_FILE_FD}>&- || die "Couldn't close checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
 	unset SUBVOL_CHECKSUMS_FILE_FD SUBVOL_CHECKSUMS_FILE
 
@@ -72,4 +103,4 @@ do
 	unset SUBVOL_STAT_LOG_FD SUBVOL_STAT_LOG
 done
 
-exit 0
+exit "$RET"
