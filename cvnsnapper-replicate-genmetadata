@@ -34,23 +34,30 @@ do
 
 
 	export SUBVOL_STAT_LOG="${SUBVOL}.stat.log"
+	export SUBVOL_CHECKSUMS_FILE="${SUBVOL}.sha256"
 
 	[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
+	[ -e "$SUBVOL_CHECKSUMS_FILE" ] && die "Checksums file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_CHECKSUMS_FILE"
 
 	exec {SUBVOL_STAT_LOG_FD}>>"$SUBVOL_STAT_LOG" || die "Couldn't open stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
 	export SUBVOL_STAT_LOG_FD
+
+	exec {SUBVOL_CHECKSUMS_FILE_FD}>>"$SUBVOL_CHECKSUMS_FILE" || die "Couldn't open checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
+	export SUBVOL_CHECKSUMS_FILE_FD 
 
 
 	echo "Processing btrfs subvolume $SUBVOL ..."
 
 	( cd "$SUBVOL" && find \
 		! -path . -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
+		-type f -exec bash -c "sha256sum --binary -- \"\$@\" >&\"\$SUBVOL_CHECKSUMS_FILE_FD\"" checksums "{}" + , \
 		-exec bash -c "stat -- \"\$@\" >&\"\$SUBVOL_STAT_LOG_FD\"" stat-log "{}" +
 	)
 
 
+	exec {SUBVOL_CHECKSUMS_FILE_FD}>&- || die "Couldn't close checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
+	unset SUBVOL_CHECKSUMS_FILE_FD SUBVOL_CHECKSUMS_FILE
+
 	exec {SUBVOL_STAT_LOG_FD}>&- || die "Couldn't close stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
-	unset \
-		SUBVOL_STAT_LOG_FD \
-		SUBVOL_STAT_LOG
+	unset SUBVOL_STAT_LOG_FD SUBVOL_STAT_LOG
 done
