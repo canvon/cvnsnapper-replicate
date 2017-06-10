@@ -62,7 +62,7 @@ do
 		! -path . -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
 		-type f -exec bash -c "sha256sum --binary -- \"\$@\" >&\"\$SUBVOL_CHECKSUMS_FILE_FD\"" checksums "{}" + , \
 		-exec bash -c "stat -- \"\$@\" >&\"\$SUBVOL_STAT_LOG_FD\"" stat-log "{}" +
-	)
+	) || die "Subshell with cd and find exited unsuccessfully (with exit code $?)"
 
 
 	exec {SUBVOL_CHECKSUMS_FILE_FD}>&- || die "Couldn't close checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
@@ -71,3 +71,5 @@ do
 	exec {SUBVOL_STAT_LOG_FD}>&- || die "Couldn't close stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
 	unset SUBVOL_STAT_LOG_FD SUBVOL_STAT_LOG
 done
+
+exit 0
