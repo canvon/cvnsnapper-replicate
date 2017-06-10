@@ -10,20 +10,30 @@ die() {
 }
 
 
-USAGE="Usage: $0 SUBVOL [...]"
+INFIX=
+
+USAGE="Usage: $0 [--infix=INFIX] SUBVOL [...]"
 
 [ "$#" -ge 1 ] || die "$USAGE"
 
-case "$1" in
---help|--usage)
-	shift
-	echo "$USAGE"
-	exit 0
-	;;
--*)
-	die "Unrecognized option \"$1\""
-	;;
-esac
+while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+do
+	case "$1" in
+	--help|--usage)
+		shift
+		echo "$USAGE"
+		exit 0
+		;;
+	--infix=*)
+		INFIX=${1#--infix=}
+		shift
+		echo "Using infix \"$INFIX\""
+		;;
+	-*)
+		die "Unrecognized option \"$1\""
+		;;
+	esac
+done
 
 
 for SUBVOL
@@ -33,8 +43,8 @@ do
 	[ "$(stat --format="%i" "$SUBVOL")" -eq 256 ] || die "Not a btrfs subvolume: $SUBVOL"
 
 
-	export SUBVOL_STAT_LOG="${SUBVOL}.stat.log"
-	export SUBVOL_CHECKSUMS_FILE="${SUBVOL}.sha256"
+	export SUBVOL_STAT_LOG="${SUBVOL}${INFIX}.stat.log"
+	export SUBVOL_CHECKSUMS_FILE="${SUBVOL}${INFIX}.sha256"
 
 	[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
 	[ -e "$SUBVOL_CHECKSUMS_FILE" ] && die "Checksums file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_CHECKSUMS_FILE"
