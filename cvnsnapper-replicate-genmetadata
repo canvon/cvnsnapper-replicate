@@ -37,10 +37,20 @@ do
 
 	[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
 
+	exec {SUBVOL_STAT_LOG_FD}>>"$SUBVOL_STAT_LOG" || die "Couldn't open stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
+	export SUBVOL_STAT_LOG_FD
+
 
 	echo "Processing btrfs subvolume $SUBVOL ..."
 
-	find "$SUBVOL" \
-		! -path "$SUBVOL" -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
-		-exec bash -c "stat -- \"\$@\" >>\"\$SUBVOL_STAT_LOG\"" stat-log "{}" +
+	( cd "$SUBVOL" && find \
+		! -path . -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
+		-exec bash -c "stat -- \"\$@\" >&\"\$SUBVOL_STAT_LOG_FD\"" stat-log "{}" +
+	)
+
+
+	exec {SUBVOL_STAT_LOG_FD}>&- || die "Couldn't close stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
+	unset \
+		SUBVOL_STAT_LOG_FD \
+		SUBVOL_STAT_LOG
 done
