@@ -35,7 +35,7 @@ do
 
 	export SUBVOL_STAT_LOG="${SUBVOL}.stat.log"
 
-	[ -e "$SUBVOL_STAT_LOG" ] && die "btrfs subvolume \"$SUBVOL\" stat log file already exists: $SUBVOL_STAT_LOG"
+	[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
 
 
 	echo "Processing btrfs subvolume $SUBVOL ..."
