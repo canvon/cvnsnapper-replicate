@@ -42,6 +42,11 @@ do
 done
 
 
+sort-stat() {
+	perl -e 'undef $/; my $data = <>; my @records = split(/^(?=  File:)/m, $data); print sort { $a cmp $b } @records'
+}
+
+
 RET=0
 
 for SUBVOL
@@ -89,7 +94,7 @@ do
 		fi
 
 		echo "Diffing stat results:"
-		if ! diff -U8 "$SUBVOL_STAT_LOG_PREV" "$SUBVOL_STAT_LOG"
+		if ! diff -U8 <(sort-stat <"$SUBVOL_STAT_LOG_PREV") <(sort-stat <"$SUBVOL_STAT_LOG")
 		then
 			warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 			[ "$RET" -lt 1 ] && RET=1
