@@ -43,6 +43,16 @@ done
 
 
 sort-stat() {
+	# Perl:
+	# * Use slurp mode.
+	# * Read in entire data.
+	# * Split into records at line beginnings that contain a file name,
+	#   using a zero-width look-ahead so the match won't be removed.
+	# * Sort records by string comparison and output the results.
+	#   As they should all begin with "  File:", this should effectively
+	#   sort by file name.
+	# * Let's hope that this won't explode on big (several hundreds of MiB?
+	#   or even larger?) input data.
 	perl -e 'undef $/; my $data = <>; my @records = split(/^(?=  File:)/m, $data); print sort { $a cmp $b } @records'
 }
 
