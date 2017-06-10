@@ -64,6 +64,7 @@ do
 	export SUBVOL_CHECKSUMS_FILE_FD 
 
 
+	echo
 	echo "Processing btrfs subvolume $SUBVOL ..."
 
 	( cd "$SUBVOL" && find \
