@@ -76,7 +76,7 @@ do
 
 	if [ -n "$DIFF_INFIX" ]
 	then
-		echo "Diffing meta-data of subvol \"$SUBVOL\" with infix \"$DIFF_INFIX\" against infix \"$INFIX\"..."
+		echo "Diffing meta-data of subvol \"$SUBVOL\" from infix \"$DIFF_INFIX\" to infix \"$INFIX\"..."
 
 		SUBVOL_STAT_LOG_PREV="${SUBVOL}${DIFF_INFIX}.stat.log"
 		SUBVOL_CHECKSUMS_FILE_PREV="${SUBVOL}${DIFF_INFIX}.sha256"
