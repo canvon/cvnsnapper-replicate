@@ -81,7 +81,7 @@ do
 		SUBVOL_CHECKSUMS_FILE_PREV="${SUBVOL}${DIFF_INFIX}.sha256"
 
 		echo "Diffing checksums:"
-		if ! diff "$SUBVOL_CHECKSUMS_FILE_PREV" "$SUBVOL_CHECKSUMS_FILE"
+		if ! diff <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE_PREV") <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE")
 		then
 			warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 			[ "$RET" -lt 1 ] && RET=1
