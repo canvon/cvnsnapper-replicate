@@ -41,6 +41,6 @@ do
 	echo "Processing btrfs subvolume $SUBVOL ..."
 
 	find "$SUBVOL" \
-		-inum 256 -printf "Pruning child subvolume %p\n" -prune , \
+		! -path "$SUBVOL" -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
 		-exec bash -c "stat -- \"\$@\" >>\"\$SUBVOL_STAT_LOG\"" stat-log "{}" +
 done
