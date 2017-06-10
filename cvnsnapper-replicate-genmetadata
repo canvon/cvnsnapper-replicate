@@ -1,0 +1,46 @@
+#!/bin/bash
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+
+USAGE="Usage: $0 SUBVOL [...]"
+
+[ "$#" -ge 1 ] || die "$USAGE"
+
+case "$1" in
+--help|--usage)
+	shift
+	echo "$USAGE"
+	exit 0
+	;;
+-*)
+	die "Unrecognized option \"$1\""
+	;;
+esac
+
+
+for SUBVOL
+do
+	[ -d "$SUBVOL" ] || die "Not a directory: $SUBVOL"
+
+	[ "$(stat --format="%i" "$SUBVOL")" -eq 256 ] || die "Not a btrfs subvolume: $SUBVOL"
+
+
+	export SUBVOL_STAT_LOG="${SUBVOL}.stat.log"
+
+	[ -e "$SUBVOL_STAT_LOG" ] && die "btrfs subvolume \"$SUBVOL\" stat log file already exists: $SUBVOL_STAT_LOG"
+
+
+	echo "Processing btrfs subvolume $SUBVOL ..."
+
+	find "$SUBVOL" \
+		-inum 256 -printf "Pruning child subvolume %p\n" -prune , \
+		-exec bash -c "stat -- \"\$@\" >>\"\$SUBVOL_STAT_LOG\"" stat-log "{}" +
+done
