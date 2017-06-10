@@ -103,4 +103,9 @@ do
 	unset SUBVOL_STAT_LOG_FD SUBVOL_STAT_LOG
 done
 
+if [ "$RET" -ne 0 ]
+then
+	warn "Warning: Exiting unsuccessfully"
+fi
+
 exit "$RET"
