@@ -67,7 +67,7 @@ done
 
 if [ -n "$DIFF_MODE" ] || [ -n "$DIFF_ONLY" ]
 then
-	[ "$DIFF_INFIX" = "$INFIX" ] && die "Syntax error: Diff mode requested, but infixes are the same -- diff infix \"$DIFF_INFIX\" vs. infix \"$INFIX\""
+	[ -z "$DIFF_SUBVOL" ] && [ "$DIFF_INFIX" = "$INFIX" ] && die "Syntax error: Diff mode requested, but infixes are the same -- diff infix \"$DIFF_INFIX\" vs. infix \"$INFIX\""
 fi
 
 
