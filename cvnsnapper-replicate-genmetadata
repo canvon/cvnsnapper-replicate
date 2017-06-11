@@ -12,6 +12,7 @@ die() {
 
 INFIX=
 DIFF_INFIX=
+DIFF_ONLY=
 
 USAGE="Usage: $0 [--infix=INFIX] SUBVOL [...]"
 
@@ -34,6 +35,11 @@ do
 		DIFF_INFIX=${1#--diff-infix=}
 		shift
 		echo "Will diff against infix \"$DIFF_INFIX\""
+		;;
+	--diff-only)
+		DIFF_ONLY=1
+		shift
+		echo "Diff-only mode"
 		;;
 	-*)
 		die "Unrecognized option \"$1\""
@@ -61,36 +67,49 @@ RET=0
 
 for SUBVOL
 do
-	[ -d "$SUBVOL" ] || die "Not a directory: $SUBVOL"
+	# (In diff-only mode, don't require the subvolume to actually be there;
+	# this allows operating just on the meta-data.)
+	if [ -z "$DIFF_ONLY" ]
+	then
+		[ -d "$SUBVOL" ] || die "Not a directory: $SUBVOL"
 
-	[ "$(stat --format="%i" "$SUBVOL")" -eq 256 ] || die "Not a btrfs subvolume: $SUBVOL"
+		[ "$(stat --format="%i" "$SUBVOL")" -eq 256 ] || die "Not a btrfs subvolume: $SUBVOL"
+	fi
 
 
 	export SUBVOL_STAT_LOG="${SUBVOL}${INFIX}.stat.log"
 	export SUBVOL_CHECKSUMS_FILE="${SUBVOL}${INFIX}.sha256"
 
-	[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
-	[ -e "$SUBVOL_CHECKSUMS_FILE" ] && die "Checksums file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_CHECKSUMS_FILE"
-
-	exec {SUBVOL_STAT_LOG_FD}>>"$SUBVOL_STAT_LOG" || die "Couldn't open stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
-	export SUBVOL_STAT_LOG_FD
-
-	exec {SUBVOL_CHECKSUMS_FILE_FD}>>"$SUBVOL_CHECKSUMS_FILE" || die "Couldn't open checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
-	export SUBVOL_CHECKSUMS_FILE_FD 
-
-
-	echo
-	echo "Processing btrfs subvolume $SUBVOL ..."
-
-	( cd "$SUBVOL" && find \
-		! -path . -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
-		-type f -exec bash -c "sha256sum --binary -- \"\$@\" >&\"\$SUBVOL_CHECKSUMS_FILE_FD\"" checksums "{}" + , \
-		-exec bash -c "stat -- \"\$@\" >&\"\$SUBVOL_STAT_LOG_FD\"" stat-log "{}" +
-	) || die "Subshell with cd and find exited unsuccessfully (with exit code $?)"
-
-
-	if [ -n "$DIFF_INFIX" ]
+	if [ -n "$DIFF_ONLY" ]
 	then
+		# In diff-only mode, require the files to be already there.
+		[ -f "$SUBVOL_STAT_LOG" ] || die "Stat log file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_STAT_LOG"
+		[ -f "$SUBVOL_CHECKSUMS_FILE" ] || die "Checksums file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_CHECKSUMS_FILE"
+	else
+		[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
+		[ -e "$SUBVOL_CHECKSUMS_FILE" ] && die "Checksums file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_CHECKSUMS_FILE"
+
+		exec {SUBVOL_STAT_LOG_FD}>>"$SUBVOL_STAT_LOG" || die "Couldn't open stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
+		export SUBVOL_STAT_LOG_FD
+
+		exec {SUBVOL_CHECKSUMS_FILE_FD}>>"$SUBVOL_CHECKSUMS_FILE" || die "Couldn't open checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
+		export SUBVOL_CHECKSUMS_FILE_FD 
+
+
+		echo
+		echo "Processing btrfs subvolume $SUBVOL ..."
+
+		( cd "$SUBVOL" && find \
+			! -path . -inum 256 -printf "Pruning child subvolume %p\n" -prune , \
+			-type f -exec bash -c "sha256sum --binary -- \"\$@\" >&\"\$SUBVOL_CHECKSUMS_FILE_FD\"" checksums "{}" + , \
+			-exec bash -c "stat -- \"\$@\" >&\"\$SUBVOL_STAT_LOG_FD\"" stat-log "{}" +
+		) || die "Subshell with cd and find exited unsuccessfully (with exit code $?)"
+	fi
+
+
+	if [ -n "$DIFF_INFIX" ] || [ -n "$DIFF_ONLY" ]
+	then
+		echo
 		echo "Diffing meta-data of subvol \"$SUBVOL\" from infix \"$DIFF_INFIX\" to infix \"$INFIX\"..."
 
 		SUBVOL_STAT_LOG_PREV="${SUBVOL}${DIFF_INFIX}.stat.log"
@@ -112,10 +131,14 @@ do
 	fi
 
 
-	exec {SUBVOL_CHECKSUMS_FILE_FD}>&- || die "Couldn't close checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
-	unset SUBVOL_CHECKSUMS_FILE_FD SUBVOL_CHECKSUMS_FILE
+	# (In diff-only mode, don't close the fds as they have not been opened.)
+	if [ -z "$DIFF_ONLY" ]
+	then
+		exec {SUBVOL_CHECKSUMS_FILE_FD}>&- || die "Couldn't close checksums file for btrfs subvolume \"$SUBVOL\": $SUBVOL_CHECKSUMS_FILE"
+		exec {SUBVOL_STAT_LOG_FD}>&- || die "Couldn't close stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
+	fi
 
-	exec {SUBVOL_STAT_LOG_FD}>&- || die "Couldn't close stat log file for btrfs subvolume \"$SUBVOL\": $SUBVOL_STAT_LOG"
+	unset SUBVOL_CHECKSUMS_FILE_FD SUBVOL_CHECKSUMS_FILE
 	unset SUBVOL_STAT_LOG_FD SUBVOL_STAT_LOG
 done
 
