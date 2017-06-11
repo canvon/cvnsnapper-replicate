@@ -141,6 +141,10 @@ sort-stat() {
 	# * Split into records at line beginnings that contain a file name,
 	#   using a zero-width look-ahead so the match won't be removed.
 	# * Define a subroutine to extract the file name from a record:
+	#   * Use a regexp that's compatible with both stat from
+	#     coreutils 8.23-4 (Debian), which outputs fancy UTF-8 quotes
+	#     before/after file name, and coreutils 8.26-3 (Debian), which
+	#     doesn't seem to output any quotes. (At least normally?)
 	#   * If regexp matches, return group match (which excludes quotes;
 	#     except for symlink, but that'll hopefully work all the same).
 	#   * Fall back to returning whole record; but tell about it once.
@@ -155,7 +159,7 @@ sort-stat() {
 		my $flag = 0;
 		sub get_file_name {
 			my ($record) = @_;
-			if ($record =~ /^  File: .(.*?).\n/) {
+			if ($record =~ /^  File: (?:\xe2\x80\x98)?(.*?)(?:\xe2\x80\x99)?\n/) {
 				return $1;
 			}
 			unless ($flag) {
