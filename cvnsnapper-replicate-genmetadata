@@ -12,6 +12,7 @@ die() {
 
 INFIX=
 DIFF_INFIX=
+DIFF_MODE=
 DIFF_ONLY=
 
 USAGE="Usage: $0 [--infix=INFIX] SUBVOL [...]"
@@ -33,6 +34,7 @@ do
 		;;
 	--diff-infix=*)
 		DIFF_INFIX=${1#--diff-infix=}
+		DIFF_MODE=1
 		shift
 		echo "Will diff against infix \"$DIFF_INFIX\""
 		;;
@@ -114,7 +116,7 @@ do
 	fi
 
 
-	if [ -n "$DIFF_INFIX" ] || [ -n "$DIFF_ONLY" ]
+	if [ -n "$DIFF_MODE" ] || [ -n "$DIFF_ONLY" ]
 	then
 		echo
 		echo "Diffing meta-data of subvol \"$SUBVOL\" from infix \"$DIFF_INFIX\" to infix \"$INFIX\"..."
