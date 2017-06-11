@@ -91,6 +91,7 @@ do
 			[ "$RET" -lt 2 ] && RET=2
 		fi
 		if ! [ -f "$SUBVOL_CHECKSUMS_FILE" ]
+		then
 			warn "Warning: Checksums file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_CHECKSUMS_FILE"
 			[ "$RET" -lt 2 ] && RET=2
 		fi
