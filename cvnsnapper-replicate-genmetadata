@@ -26,8 +26,6 @@ case "${0##*/}" in
 	;;
 esac
 
-[ "$#" -ge 1 ] || die "$USAGE"
-
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
 do
 	case "$1" in
@@ -57,6 +55,8 @@ do
 		;;
 	esac
 done
+
+[ "$#" -ge 1 ] || die "$USAGE"
 
 if [ -n "$DIFF_MODE" ] || [ -n "$DIFF_ONLY" ]
 then
