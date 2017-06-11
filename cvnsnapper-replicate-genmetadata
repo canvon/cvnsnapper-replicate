@@ -13,6 +13,7 @@ die() {
 INFIX=
 DIFF_INFIX=
 DIFF_SUBVOL=
+DIFF_EXCLUDE=
 DIFF_MODE=
 DIFF_ONLY=
 
@@ -48,9 +49,15 @@ do
 		;;
 	--diff-subvol=*)
 		DIFF_SUBVOL=${1#--diff-subvol=}
+		DIFF_EXCLUDE="${DIFF_EXCLUDE:+${DIFF_EXCLUDE},}atime"
 		DIFF_MODE=1
 		shift
 		echo "Will diff against subvol \"$DIFF_SUBVOL\""
+		;;
+	--diff-exclude=*)
+		DIFF_EXCLUDE=${1#--diff-exclude=}
+		shift
+		echo "Setting diff exclude to \"$DIFF_EXCLUDE\""
 		;;
 	--diff-only)
 		DIFF_ONLY=1
@@ -92,6 +99,35 @@ adjust-stat-device() {
 	   ! [ "$ADJUST_STAT_DEVICE_FROM" = "$ADJUST_STAT_DEVICE_TO" ]
 	then
 		sed -e "/^Device:/ s#$ADJUST_STAT_DEVICE_FROM#$ADJUST_STAT_DEVICE_TO#"
+	else
+		# Degrade to "filter" as-is.
+		cat
+	fi
+}
+
+filter-stat() {
+	GREP_REGEX=
+	if grep -q -E '(^|,)atime(,|$)' <<<"$DIFF_EXCLUDE"
+	then
+		GREP_REGEX="${GREP_REGEX:+${GREP_REGEX}|}^Access:"
+	fi
+	if grep -q -E '(^|,)mtime(,|$)' <<<"$DIFF_EXCLUDE"
+	then
+		GREP_REGEX="${GREP_REGEX:+${GREP_REGEX}|}^Modify:"
+	fi
+	if grep -q -E '(^|,)ctime(,|$)' <<<"$DIFF_EXCLUDE"
+	then
+		GREP_REGEX="${GREP_REGEX:+${GREP_REGEX}|}^Change:"
+	fi
+	if grep -q -E '(^|,)dev-inode-links(,|$)' <<<"$DIFF_EXCLUDE"
+	then
+		GREP_REGEX="${GREP_REGEX:+${GREP_REGEX}|}^Device:"
+	fi
+
+	if [ -n "$GREP_REGEX" ]
+	then
+		# Filter out the DIFF_EXCLUDE'd lines.
+		grep -v -E "$GREP_REGEX"
 	else
 		# Degrade to "filter" as-is.
 		cat
@@ -203,10 +239,10 @@ do
 			ADJUSTED=
 			[ "$SRC_DEVICE" != "$DST_DEVICE" ] && ADJUSTED=1
 
-			echo "Diffing stat results${ADJUSTED:+, adjusted}:"
+			echo "Diffing stat results${ADJUSTED:+, adjusted}${DIFF_EXCLUDE:+, excluding \"$DIFF_EXCLUDE\"}:"
 			if ! diff -U8 \
-				<(sort-stat <"$SUBVOL_STAT_LOG_PREV" | adjust-stat-device "$SRC_DEVICE" "$DST_DEVICE") \
-				<(sort-stat <"$SUBVOL_STAT_LOG")
+				<(sort-stat <"$SUBVOL_STAT_LOG_PREV" | filter-stat | adjust-stat-device "$SRC_DEVICE" "$DST_DEVICE") \
+				<(sort-stat <"$SUBVOL_STAT_LOG"      | filter-stat)
 			then
 				warn "Warning: stat differences found for subvol \"$SUBVOL\", from${DIFF_SUBVOL:+ diff subvol \"$DIFF_SUBVOL\"} infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 				[ "$RET" -lt 1 ] && RET=1
