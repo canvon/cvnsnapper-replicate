@@ -143,7 +143,7 @@ sort-stat() {
 	# * Define a subroutine to extract the file name from a record:
 	#   * If regexp matches, return group match (which excludes quotes;
 	#     except for symlink, but that'll hopefully work all the same).
-	#   * Fall back to returning whole record.
+	#   * Fall back to returning whole record; but tell about it once.
 	# * Sort records by string comparison on record file names
 	#   and output the results.
 	# * Let's hope that this won't explode on big (several hundreds of MiB?
