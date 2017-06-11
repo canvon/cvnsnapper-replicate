@@ -115,18 +115,30 @@ do
 		SUBVOL_STAT_LOG_PREV="${SUBVOL}${DIFF_INFIX}.stat.log"
 		SUBVOL_CHECKSUMS_FILE_PREV="${SUBVOL}${DIFF_INFIX}.sha256"
 
-		echo "Diffing checksums:"
-		if ! diff <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE_PREV") <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE")
+		if ! [ -f "$SUBVOL_CHECKSUMS_FILE_PREV" ]
 		then
-			warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
-			[ "$RET" -lt 1 ] && RET=1
+			warn "Warning: Checksums can't be diff'ed for subvol \"$SUBVOL\": Previous checksums file missing or not a regular file: $SUBVOL_CHECKSUMS_FILE_PREV"
+			[ "$RET" -lt 2 ] && RET=2
+		else
+			echo "Diffing checksums:"
+			if ! diff <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE_PREV") <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE")
+			then
+				warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
+				[ "$RET" -lt 1 ] && RET=1
+			fi
 		fi
 
-		echo "Diffing stat results:"
-		if ! diff -U8 <(sort-stat <"$SUBVOL_STAT_LOG_PREV") <(sort-stat <"$SUBVOL_STAT_LOG")
+		if ! [ -f "$SUBVOL_STAT_LOG_PREV" ]
 		then
-			warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
-			[ "$RET" -lt 1 ] && RET=1
+			warn "Warning: Stat results can't be diff'ed for subvol \"$SUBVOL\": Previous stat log missing or not a regular file: $SUBVOL_STAT_LOG_PREV"
+			[ "$RET" -lt 2 ] && RET=2
+		else
+			echo "Diffing stat results:"
+			if ! diff -U8 <(sort-stat <"$SUBVOL_STAT_LOG_PREV") <(sort-stat <"$SUBVOL_STAT_LOG")
+			then
+				warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
+				[ "$RET" -lt 1 ] && RET=1
+			fi
 		fi
 	fi
 
