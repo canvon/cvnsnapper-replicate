@@ -83,8 +83,15 @@ do
 	if [ -n "$DIFF_ONLY" ]
 	then
 		# In diff-only mode, require the files to be already there.
-		[ -f "$SUBVOL_STAT_LOG" ] || die "Stat log file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_STAT_LOG"
-		[ -f "$SUBVOL_CHECKSUMS_FILE" ] || die "Checksums file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_CHECKSUMS_FILE"
+		if ! [ -f "$SUBVOL_STAT_LOG" ]
+		then
+			warn "Warning: Stat log file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_STAT_LOG"
+			[ "$RET" -lt 2 ] && RET=2
+		fi
+		if ! [ -f "$SUBVOL_CHECKSUMS_FILE" ]
+			warn "Warning: Checksums file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_CHECKSUMS_FILE"
+			[ "$RET" -lt 2 ] && RET=2
+		fi
 	else
 		[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
 		[ -e "$SUBVOL_CHECKSUMS_FILE" ] && die "Checksums file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_CHECKSUMS_FILE"
