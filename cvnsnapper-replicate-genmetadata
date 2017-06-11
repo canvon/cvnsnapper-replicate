@@ -71,6 +71,33 @@ then
 fi
 
 
+get-stat-device() {
+	# Stream Editor:
+	# * Instead of in filter mode, run in explicit output mode.
+	#   (no print, -n)
+	# * On first line beginning with "Device:", operate and,
+	#   in any case, quit. (/.../ { ...; q })
+	# * Try to extract the device string (hex/dec), by matching
+	#   on the whole line and replacing it by the group-matched
+	#   device string. If successful, output.
+	#   (s/.../.../p, substitute & print)
+	sed -n -e '/^Device:/ { s/^Device: \([^[:space:]]*\)[[:space:]]\+.*/\1/p; q }'
+}
+
+adjust-stat-device() {
+	[ "$#" -eq 2 ] || die "Internal error: adjust-stat-device usage: ADJUST_STAT_DEVICE_FROM ADJUST_STAT_DEVICE_TO"
+	local ADJUST_STAT_DEVICE_FROM="$1" ADJUST_STAT_DEVICE_TO="$2"
+	shift 2
+	if [ -n "$ADJUST_STAT_DEVICE_FROM" ] && [ -n "$ADJUST_STAT_DEVICE_TO" ] &&
+	   ! [ "$ADJUST_STAT_DEVICE_FROM" = "$ADJUST_STAT_DEVICE_TO" ]
+	then
+		sed -e "/^Device:/ s#$ADJUST_STAT_DEVICE_FROM#$ADJUST_STAT_DEVICE_TO#"
+	else
+		# Degrade to "filter" as-is.
+		cat
+	fi
+}
+
 sort-stat() {
 	# Perl:
 	# * Use slurp mode.
@@ -171,8 +198,15 @@ do
 			[ "$RET" -lt 2 ] && RET=2
 			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
 		else
-			echo "Diffing stat results:"
-			if ! diff -U8 <(sort-stat <"$SUBVOL_STAT_LOG_PREV") <(sort-stat <"$SUBVOL_STAT_LOG")
+			SRC_DEVICE="$(get-stat-device <"$SUBVOL_STAT_LOG_PREV")" || SRC_DEVICE=
+			DST_DEVICE="$(get-stat-device <"$SUBVOL_STAT_LOG")"      || DST_DEVICE=
+			ADJUSTED=
+			[ "$SRC_DEVICE" != "$DST_DEVICE" ] && ADJUSTED=1
+
+			echo "Diffing stat results${ADJUSTED:+, adjusted}:"
+			if ! diff -U8 \
+				<(sort-stat <"$SUBVOL_STAT_LOG_PREV" | adjust-stat-device "$SRC_DEVICE" "$DST_DEVICE") \
+				<(sort-stat <"$SUBVOL_STAT_LOG")
 			then
 				warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 				[ "$RET" -lt 1 ] && RET=1
