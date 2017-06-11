@@ -181,7 +181,7 @@ do
 			echo "Diffing checksums:"
 			if ! diff <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE_PREV") <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE")
 			then
-				warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
+				warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from${DIFF_SUBVOL:+ diff subvol \"$DIFF_SUBVOL\"} infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 				[ "$RET" -lt 1 ] && RET=1
 				[ "$DIFF_RESULT" -lt 1 ] && DIFF_RESULT=1
 			fi
@@ -208,7 +208,7 @@ do
 				<(sort-stat <"$SUBVOL_STAT_LOG_PREV" | adjust-stat-device "$SRC_DEVICE" "$DST_DEVICE") \
 				<(sort-stat <"$SUBVOL_STAT_LOG")
 			then
-				warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
+				warn "Warning: stat differences found for subvol \"$SUBVOL\", from${DIFF_SUBVOL:+ diff subvol \"$DIFF_SUBVOL\"} infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 				[ "$RET" -lt 1 ] && RET=1
 				[ "$DIFF_RESULT" -lt 1 ] && DIFF_RESULT=1
 			fi
