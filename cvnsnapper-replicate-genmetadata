@@ -245,7 +245,10 @@ done
 
 if [ "$RET" -ne 0 ]
 then
-	warn "Warning: Exiting unsuccessfully"
+	warn "Warning: Exiting unsuccessfully (with exit code $RET)"
+else
+	echo
+	echo "Summary: No problems detected."
 fi
 
 exit "$RET"
