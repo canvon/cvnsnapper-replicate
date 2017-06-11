@@ -15,7 +15,16 @@ DIFF_INFIX=
 DIFF_MODE=
 DIFF_ONLY=
 
-USAGE="Usage: $0 [--diff-only] [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
+# Change defaults based on what we were called as.
+case "${0##*/}" in
+*-diff*)
+	USAGE="Usage: $0 [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
+	DIFF_ONLY=1
+	;;
+*)
+	USAGE="Usage: $0 [--diff-only] [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
+	;;
+esac
 
 [ "$#" -ge 1 ] || die "$USAGE"
 
