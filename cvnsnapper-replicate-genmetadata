@@ -85,16 +85,8 @@ do
 	if [ -n "$DIFF_ONLY" ]
 	then
 		# In diff-only mode, require the files to be already there.
-		if ! [ -f "$SUBVOL_STAT_LOG" ]
-		then
-			warn "Warning: Stat log file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_STAT_LOG"
-			[ "$RET" -lt 2 ] && RET=2
-		fi
-		if ! [ -f "$SUBVOL_CHECKSUMS_FILE" ]
-		then
-			warn "Warning: Checksums file for btrfs subvolume \"$SUBVOL\" missing or not a regular file: $SUBVOL_CHECKSUMS_FILE"
-			[ "$RET" -lt 2 ] && RET=2
-		fi
+		# Check will be done while diffing, below.
+		:
 	else
 		[ -e "$SUBVOL_STAT_LOG" ] && die "Stat log file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_STAT_LOG"
 		[ -e "$SUBVOL_CHECKSUMS_FILE" ] && die "Checksums file for btrfs subvolume \"$SUBVOL\" already exists: $SUBVOL_CHECKSUMS_FILE"
@@ -132,6 +124,11 @@ do
 			warn "Warning: Checksums can't be diff'ed for subvol \"$SUBVOL\": Previous checksums file missing or not a regular file: $SUBVOL_CHECKSUMS_FILE_PREV"
 			[ "$RET" -lt 2 ] && RET=2
 			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
+		elif ! [ -f "$SUBVOL_CHECKSUMS_FILE" ]
+		then
+			warn "Warning: Checksums can't be diff'ed for subvol \"$SUBVOL\": Later checksums file missing or not a regular file: $SUBVOL_CHECKSUMS_FILE"
+			[ "$RET" -lt 2 ] && RET=2
+			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
 		else
 			echo "Diffing checksums:"
 			if ! diff <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE_PREV") <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE")
@@ -145,6 +142,11 @@ do
 		if ! [ -f "$SUBVOL_STAT_LOG_PREV" ]
 		then
 			warn "Warning: Stat results can't be diff'ed for subvol \"$SUBVOL\": Previous stat log missing or not a regular file: $SUBVOL_STAT_LOG_PREV"
+			[ "$RET" -lt 2 ] && RET=2
+			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
+		elif ! [ -f "$SUBVOL_STAT_LOG" ]
+		then
+			warn "Warning: Stat results can't be diff'ed for subvol \"$SUBVOL\": Later stat log missing or not a regular file: $SUBVOL_STAT_LOG"
 			[ "$RET" -lt 2 ] && RET=2
 			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
 		else
