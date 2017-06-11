@@ -122,6 +122,8 @@ do
 		echo
 		echo "Diffing meta-data of subvol \"$SUBVOL\" from infix \"$DIFF_INFIX\" to infix \"$INFIX\"..."
 
+		DIFF_RESULT=0
+
 		SUBVOL_STAT_LOG_PREV="${SUBVOL}${DIFF_INFIX}.stat.log"
 		SUBVOL_CHECKSUMS_FILE_PREV="${SUBVOL}${DIFF_INFIX}.sha256"
 
@@ -129,12 +131,14 @@ do
 		then
 			warn "Warning: Checksums can't be diff'ed for subvol \"$SUBVOL\": Previous checksums file missing or not a regular file: $SUBVOL_CHECKSUMS_FILE_PREV"
 			[ "$RET" -lt 2 ] && RET=2
+			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
 		else
 			echo "Diffing checksums:"
 			if ! diff <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE_PREV") <(sort -k2 <"$SUBVOL_CHECKSUMS_FILE")
 			then
 				warn "Warning: Checksum differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 				[ "$RET" -lt 1 ] && RET=1
+				[ "$DIFF_RESULT" -lt 1 ] && DIFF_RESULT=1
 			fi
 		fi
 
@@ -142,14 +146,32 @@ do
 		then
 			warn "Warning: Stat results can't be diff'ed for subvol \"$SUBVOL\": Previous stat log missing or not a regular file: $SUBVOL_STAT_LOG_PREV"
 			[ "$RET" -lt 2 ] && RET=2
+			[ "$DIFF_RESULT" -lt 2 ] && DIFF_RESULT=2
 		else
 			echo "Diffing stat results:"
 			if ! diff -U8 <(sort-stat <"$SUBVOL_STAT_LOG_PREV") <(sort-stat <"$SUBVOL_STAT_LOG")
 			then
 				warn "Warning: stat differences found for subvol \"$SUBVOL\", from infix \"$DIFF_INFIX\" to infix \"$INFIX\""
 				[ "$RET" -lt 1 ] && RET=1
+				[ "$DIFF_RESULT" -lt 1 ] && DIFF_RESULT=1
 			fi
 		fi
+
+		echo -n "Overall diff result: "
+		case "$DIFF_RESULT" in
+		0)
+			echo "Success; no differences found."
+			;;
+		1)
+			echo "Soft failure; some differences found."
+			;;
+		2)
+			echo "Hard failure; e.g., some meta-data files were missing."
+			;;
+		*)
+			echo "(unknown)"
+			;;
+		esac
 	fi
 
 
