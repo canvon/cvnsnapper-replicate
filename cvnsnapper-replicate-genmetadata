@@ -152,10 +152,15 @@ sort-stat() {
 		undef $/;
 		my $data = <>;
 		my @records = split(/^(?=  File:)/m, $data);
+		my $flag = 0;
 		sub get_file_name {
 			my ($record) = @_;
-			if ($record =~ /^  File: .(.*).$/) {
+			if ($record =~ /^  File: .(.*?).\n/) {
 				return $1;
+			}
+			unless ($flag) {
+				print(STDERR "Falling back on whole-record sort.\n");
+				$flag++;
 			}
 			return $record;
 		}
