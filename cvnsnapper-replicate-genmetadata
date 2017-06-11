@@ -15,7 +15,7 @@ DIFF_INFIX=
 DIFF_MODE=
 DIFF_ONLY=
 
-USAGE="Usage: $0 [--infix=INFIX] SUBVOL [...]"
+USAGE="Usage: $0 [--diff-only] [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
 
 [ "$#" -ge 1 ] || die "$USAGE"
 
