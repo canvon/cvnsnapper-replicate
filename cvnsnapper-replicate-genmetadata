@@ -12,17 +12,18 @@ die() {
 
 INFIX=
 DIFF_INFIX=
+DIFF_SUBVOL=
 DIFF_MODE=
 DIFF_ONLY=
 
 # Change defaults based on what we were called as.
 case "${0##*/}" in
 *-diff*)
-	USAGE="Usage: $0 [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
+	USAGE="Usage: $0 [--diff-subvol=DIFF_SUBVOL] [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
 	DIFF_ONLY=1
 	;;
 *)
-	USAGE="Usage: $0 [--diff-only] [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
+	USAGE="Usage: $0 [--diff-only] [--diff-subvol=DIFF_SUBVOL] [--diff-infix=DIFF_INFIX] [--infix=INFIX] SUBVOL [...]"
 	;;
 esac
 
@@ -44,6 +45,12 @@ do
 		DIFF_MODE=1
 		shift
 		echo "Will diff against infix \"$DIFF_INFIX\""
+		;;
+	--diff-subvol=*)
+		DIFF_SUBVOL=${1#--diff-subvol=}
+		DIFF_MODE=1
+		shift
+		echo "Will diff against subvol \"$DIFF_SUBVOL\""
 		;;
 	--diff-only)
 		DIFF_ONLY=1
@@ -126,12 +133,12 @@ do
 	if [ -n "$DIFF_MODE" ] || [ -n "$DIFF_ONLY" ]
 	then
 		echo
-		echo "Diffing meta-data of subvol \"$SUBVOL\" from infix \"$DIFF_INFIX\" to infix \"$INFIX\"..."
+		echo "Diffing meta-data of subvol \"$SUBVOL\" from${DIFF_SUBVOL:+ diff subvol \"$DIFF_SUBVOL\"} infix \"$DIFF_INFIX\" to infix \"$INFIX\"..."
 
 		DIFF_RESULT=0
 
-		SUBVOL_STAT_LOG_PREV="${SUBVOL}${DIFF_INFIX}.stat.log"
-		SUBVOL_CHECKSUMS_FILE_PREV="${SUBVOL}${DIFF_INFIX}.sha256"
+		SUBVOL_STAT_LOG_PREV="${DIFF_SUBVOL:-$SUBVOL}${DIFF_INFIX}.stat.log"
+		SUBVOL_CHECKSUMS_FILE_PREV="${DIFF_SUBVOL:-$SUBVOL}${DIFF_INFIX}.sha256"
 
 		if ! [ -f "$SUBVOL_CHECKSUMS_FILE_PREV" ]
 		then
