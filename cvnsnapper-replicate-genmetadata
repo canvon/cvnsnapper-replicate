@@ -140,12 +140,27 @@ sort-stat() {
 	# * Read in entire data.
 	# * Split into records at line beginnings that contain a file name,
 	#   using a zero-width look-ahead so the match won't be removed.
-	# * Sort records by string comparison and output the results.
-	#   As they should all begin with "  File:", this should effectively
-	#   sort by file name.
+	# * Define a subroutine to extract the file name from a record:
+	#   * If regexp matches, return group match (which excludes quotes;
+	#     except for symlink, but that'll hopefully work all the same).
+	#   * Fall back to returning whole record.
+	# * Sort records by string comparison on record file names
+	#   and output the results.
 	# * Let's hope that this won't explode on big (several hundreds of MiB?
 	#   or even larger?) input data.
-	perl -e 'undef $/; my $data = <>; my @records = split(/^(?=  File:)/m, $data); print sort { $a cmp $b } @records'
+	perl -e '
+		undef $/;
+		my $data = <>;
+		my @records = split(/^(?=  File:)/m, $data);
+		sub get_file_name {
+			my ($record) = @_;
+			if ($record =~ /^  File: .(.*).$/) {
+				return $1;
+			}
+			return $record;
+		}
+		print sort { get_file_name($a) cmp get_file_name($b) } @records;
+	'
 }
 
 
