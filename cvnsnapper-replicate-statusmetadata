@@ -66,6 +66,19 @@ sub read_stat_records_for_ctx {
 	return 1;
 }
 
+sub sort_stat_records {
+	sort { $a->{'file_path'} cmp $b->{'file_path'} } (@_);
+}
+
+sub status_stat_recordss {
+	my ($ref_records, $other_records) = @_;
+
+	# TODO: Actually merge-compare the two sorted lists.
+	print("Ref: ".scalar(@$ref_records).", Other: ".scalar(@$other_records)."\n");
+
+	return 0;
+}
+
 
 our $usage = "Usage: $0 DIFF_SUBVOL_WITH_INFIX SUBVOL_WITH_INFIX";
 
@@ -98,7 +111,14 @@ foreach my $ctx ($ref_ctx, $other_ctx) {
 	}
 }
 
-# FIXME: Do something with the read-in data.
-#print sort { get_file_name($a) cmp get_file_name($b) } @records;
+my $result = eval {
+	status_stat_recordss(
+		[ sort_stat_records(@{$ref_ctx->{'stat_records'}}) ],
+		[ sort_stat_records(@{$other_ctx->{'stat_records'}}) ]
+	);
+};
+if (!defined($result) && $@) {
+	die("Error status-processing subvolumes' stat records: $@"); # (don't double the \n from $@)
+}
 
-exit(0);
+exit($result);
