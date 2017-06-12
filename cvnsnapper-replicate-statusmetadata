@@ -1,0 +1,104 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+(our $basename = $0) =~ s#^.*/##;
+
+$SIG{'__WARN__'} = sub { warn("$basename: ", @_); };
+$SIG{'__DIE__'}  = sub { die ("$basename: Fatal: ", @_) unless $^S; die(@_); };
+
+
+sub parse_stat_record {
+	my ($record_str) = scalar(@_) ? @_ : ($_);
+	my $record = {
+		record_str => $record_str,
+	};
+
+	die("Cannot extract record's file string\n")
+	  unless ($record_str =~ /^  File: (.*?)\n/);
+	my $file_str = $1;
+	$record->{'file_str'} = $file_str;
+
+	my $openquote  = qr/\xe2\x80\x98/;
+	my $closequote = qr/\xe2\x80\x99/;
+	if ($file_str =~ /^$openquote?(.*?)$closequote? -> $openquote?(.*?)$closequote?$/) {
+		$record->{'file_path'} = $1;
+		$record->{'symlink_target'} = $2;
+	}
+	elsif ($file_str =~ /^$openquote?(.*?)$closequote?$/) {
+		$record->{'file_path'} = $1;
+	}
+	else {
+		die("Cannot extract record file string's file path\n");
+	}
+
+	return $record;
+}
+
+sub read_stat_records_from_fh {
+	my ($fh) = @_;
+
+	local $/ = undef;
+	my $data = <$fh>;
+	return split(/^(?=  File:)/m, $data);
+}
+
+sub read_stat_records_for_ctx {
+	my ($ctx) = @_;
+
+	my $base_path = $ctx->{'base_path'} or die("Internal error: context's base_path was not set");  # (no \n)
+	my $stat_log_path = $base_path.".stat.log";
+	$ctx->{'stat_log_path'} = $stat_log_path;
+
+	open(my $stat_log_fh, '<', $stat_log_path) or die("Cannot open stat log at \"$stat_log_path\": $!\n");
+
+	my @records = eval {
+		map { parse_stat_record } (read_stat_records_from_fh($stat_log_fh));
+	};
+	if (scalar(@records) == 0 && $@) {
+		die("Error processing stat log at \"$stat_log_path\": $@");  # (don't double the \n from $@)
+	}
+	$ctx->{'stat_records'} = \@records;
+
+	close($stat_log_fh) or die("Cannot close stat log at \"$stat_log_path\": $!\n");
+
+	return 1;
+}
+
+
+our $usage = "Usage: $0 DIFF_SUBVOL_WITH_INFIX SUBVOL_WITH_INFIX";
+
+while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
+	my $opt = shift;
+	for ($opt) {
+		if (/^--(help|usage)$/) {
+			print("$usage\n");
+			exit(0);
+		}
+		else {
+			die("Invalid option \"$opt\"\n");
+		}
+	}
+}
+
+scalar(@ARGV) == 2 or die("$usage\n");
+
+my ($ref_base_path, $other_base_path) = @ARGV;
+
+my $ref_ctx   = { base_path => $ref_base_path   };
+my $other_ctx = { base_path => $other_base_path };
+
+foreach my $ctx ($ref_ctx, $other_ctx) {
+	my $result = eval {
+		read_stat_records_for_ctx($ctx) or die("Read stat records for context was unsuccessful\n");
+	};
+	if (!defined($result) && $@) {
+		die("Error read-processing subvolume meta-data base path ".$ctx->{'base_path'}.": $@");  # (don't double the \n from $@)
+	}
+}
+
+# FIXME: Do something with the read-in data.
+#print sort { get_file_name($a) cmp get_file_name($b) } @records;
+
+exit(0);
