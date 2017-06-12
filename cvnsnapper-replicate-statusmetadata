@@ -33,6 +33,56 @@ sub parse_stat_record {
 		die("Cannot extract record file string's file path\n");
 	}
 
+	die("Cannot extract record's size/blocks/IO_block/type\n")
+	  unless ($record_str =~ /^  Size: (\d+)\s+Blocks: (\d+)\s+IO Block: (\d+)\s+(.*?)$/m);
+	$record->@{'size', 'blocks', 'io_block', 'type'} = ($1, $2, $3, $4);
+
+	die("Cannot extract record's device_str/inode/nlinks\n")
+	  unless ($record_str =~ /^Device: (\S+)\s+Inode: (\d+)\s+Links: (\d+)$/m);
+	$record->@{'device_str', 'inode', 'nlinks'} = ($1, $2, $3);
+	my $device_str = $record->{'device_str'};
+
+	die("Cannot parse record's device_str\n")
+	  unless ($device_str =~ /^([0-9a-f]+)h\/([0-9]+)d$/);
+	my ($device_hex, $device_dec) = ($1, $2);
+	$record->@{'device_hex', 'device_dec'} = ($device_hex, $device_dec);
+
+	die("Parse of record's device_hex \"$device_hex\" vs. device_dec \"$device_dec\" is inconsistent\n")
+	  unless (hex($device_hex) == $device_dec);
+
+	die("Cannot extract record's permissions/user/group\n")
+	  unless ($record_str =~ /^Access: \((.*?)\)\s+Uid: \((.*?)\)\s+Gid: \((.*?)\)$/m);
+	my ($perm_str, $uid_str, $gid_str) = ($1, $2, $3);
+	$record->@{'perm_str', 'uid_str', 'gid_str'} = ($perm_str, $uid_str, $gid_str);
+
+	die("Cannot parse record's perm_str\n")
+	  unless ($perm_str =~ /^\s*([0-7]+)\s*\/\s*([-a-z]+)\s*$/);
+	$record->@{'perm_oct', 'perm_long'} = ($1, $2);
+
+	die("Cannot parse record's uid_str\n")
+	  unless ($uid_str =~ /^\s*([0-9]+)\s*\/\s*(\S+)\s*$/);
+	$record->@{'uid', 'user'} = ($1, $2);
+
+	die("Cannot parse record's gid_str\n")
+	  unless ($gid_str =~ /^\s*([0-9]+)\s*\/\s*(\S+)\s*$/);
+	$record->@{'gid', 'group'} = ($1, $2);
+
+	die("Cannot extract record's access time\n")
+	  unless ($record_str =~ /^Access:\s+([0-9].*)$/m);
+	$record->{'atime'} = $1;
+
+	die("Cannot extract record's modification time\n")
+	  unless ($record_str =~ /^Modify:\s+([0-9].*)$/m);
+	$record->{'mtime'} = $1;
+
+	die("Cannot extract record's status change time\n")
+	  unless ($record_str =~ /^Change:\s+([0-9].*)$/m);
+	$record->{'ctime'} = $1;
+
+	die("Cannot extract record's birth time\n")
+	  unless ($record_str =~ /^ Birth:\s+(-|[0-9].*)$/m);
+	$record->{'btime'} = $1;
+
 	return $record;
 }
 
