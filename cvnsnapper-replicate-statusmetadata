@@ -86,6 +86,49 @@ sub parse_stat_record {
 	return $record;
 }
 
+sub diff_stat_records {
+	my ($ref_rec, $other_rec) = @_;
+	my @diff_fields;
+
+	my $compare_str = sub { $_[0] eq $_[1] };
+	my $compare_num = sub { $_[0] == $_[1] };
+	my $field_comparisons = [
+		{ field_name => 'file_path',      comparison => $compare_str },
+		{ field_name => 'symlink_target', comparison => $compare_str },
+		{ field_name => 'size',           comparison => $compare_num },
+		{ field_name => 'blocks',         comparison => $compare_num },
+		{ field_name => 'io_blocks',      comparison => $compare_num },
+		{ field_name => 'type',           comparison => $compare_str },
+		{ field_name => 'device_dec',     comparison => $compare_num },
+		{ field_name => 'inode',          comparison => $compare_num },
+		{ field_name => 'nlinks',         comparison => $compare_num },
+		{ field_name => 'perm_oct',       comparison => $compare_num },
+		{ field_name => 'perm_long',      comparison => $compare_str },
+		{ field_name => 'uid',            comparison => $compare_num },
+		{ field_name => 'gid',            comparison => $compare_num },
+		{ field_name => 'user',           comparison => $compare_str },
+		{ field_name => 'group',          comparison => $compare_str },
+		{ field_name => 'atime',          comparison => $compare_str },
+		{ field_name => 'mtime',          comparison => $compare_str },
+		{ field_name => 'ctime',          comparison => $compare_str },
+		{ field_name => 'btime',          comparison => $compare_str },
+	];
+
+	foreach my $field_comparison (@$field_comparisons) {
+		my ($field_name, $comparison) = $field_comparison->@{'field_name', 'comparison'};
+
+		if (exists($ref_rec->{$field_name}) && exists($other_rec->{$field_name})) {
+			push(@diff_fields, $field_name)
+			  unless ($comparison->($ref_rec->{$field_name}, $other_rec->{$field_name}));
+		}
+		elsif (exists($ref_rec->{$field_name}) xor exists($other_rec->{$field_name})) {
+			push(@diff_fields, $field_name);
+		}
+	}
+
+	return @diff_fields;
+}
+
 sub read_stat_records_from_fh {
 	my ($fh) = @_;
 
@@ -133,9 +176,20 @@ sub status_stat_recordss {
 
 			my $comparison = $ref_rec->{'file_path'} cmp $other_rec->{'file_path'};
 			if ($comparison == 0) {
-				# TODO: Compare details and output difference,
-				# if some was found, or else skip.
-				print("? ".$other_rec->{'file_path'}."\n");
+				my $common_file_path = $other_rec->{'file_path'};
+
+				# Compare details and output difference,
+				# if some was found.
+				my @diff_fields = eval {
+					diff_stat_records($ref_rec, $other_rec);
+				};
+				if (scalar(@diff_fields) == 0 && $@) {
+					warn("Warning: Problem diffing stat record for file path \"$common_file_path\": $@");  # (don't double the \n from $@)
+					print("? $common_file_path\n");
+				}
+				elsif (scalar(@diff_fields)) {
+					print(join(',', @diff_fields)." $common_file_path\n");
+				}
 
 				# shift from both
 				shift(@$ref_records);
