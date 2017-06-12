@@ -9,6 +9,10 @@ $SIG{'__WARN__'} = sub { warn("$basename: ", @_); };
 $SIG{'__DIE__'}  = sub { die ("$basename: Fatal: ", @_) unless $^S; die(@_); };
 
 
+# Global state.
+our @ignore_fields;
+
+
 sub parse_stat_record {
 	my ($record_str) = scalar(@_) ? @_ : ($_);
 	my $record = {
@@ -116,6 +120,7 @@ sub diff_stat_records {
 
 	foreach my $field_comparison (@$field_comparisons) {
 		my ($field_name, $comparison) = @$field_comparison{'field_name', 'comparison'};
+		next if (grep { $_ eq $field_name } (@ignore_fields));
 
 		if (exists($ref_rec->{$field_name}) && exists($other_rec->{$field_name})) {
 			push(@diff_fields, $field_name)
@@ -226,6 +231,12 @@ while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 		if (/^--(help|usage)$/) {
 			print("$usage\n");
 			exit(0);
+		}
+		elsif (/^--(?:add-)?ignore-fields=(.*)$/) {
+			push(@ignore_fields, split(/,/, $1));
+		}
+		elsif (/^--set-ignore-fields=(.*)$/) {
+			@ignore_fields = split(/,/, $1);
 		}
 		else {
 			die("Invalid option \"$opt\"\n");
