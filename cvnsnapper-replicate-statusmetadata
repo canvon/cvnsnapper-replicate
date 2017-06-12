@@ -171,9 +171,9 @@ sub sort_stat_records {
 sub status_stat_recordss {
 	my ($ref_records, $other_records) = @_;
 
-	# TODO: Actually merge-compare the two sorted lists.
 	print("Ref: ".scalar(@$ref_records).", Other: ".scalar(@$other_records)."\n");
 
+	# Merge-compare the two sorted lists.
 	while (scalar(@$ref_records) >= 1 || scalar(@$other_records) >= 1) {
 		if (scalar(@$ref_records) >= 1 && scalar(@$other_records) >= 1) {
 			my $ref_rec   = $ref_records->[0];
