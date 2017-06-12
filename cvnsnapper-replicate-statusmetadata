@@ -76,6 +76,40 @@ sub status_stat_recordss {
 	# TODO: Actually merge-compare the two sorted lists.
 	print("Ref: ".scalar(@$ref_records).", Other: ".scalar(@$other_records)."\n");
 
+	while (scalar(@$ref_records) >= 1 || scalar(@$other_records) >= 1) {
+		if (scalar(@$ref_records) >= 1 && scalar(@$other_records) >= 1) {
+			my $ref_rec   = $ref_records->[0];
+			my $other_rec = $other_records->[0];
+
+			my $comparison = $ref_rec->{'file_path'} cmp $other_rec->{'file_path'};
+			if ($comparison == 0) {
+				# TODO: Compare details and output difference,
+				# if some was found, or else skip.
+				print("? ".$other_rec->{'file_path'}."\n");
+
+				# shift from both
+				shift(@$ref_records);
+				shift(@$other_records);
+			}
+			elsif ($comparison < 0) {
+				print("- ".$ref_rec->{'file_path'}."\n");
+				shift(@$ref_records);
+			}
+			else {
+				print("+ ".$other_rec->{'file_path'}."\n");
+				shift(@$other_records);
+			}
+		}
+		elsif (scalar(@$ref_records) >= 1) {
+			print("- ".$ref_records->[0]{'file_path'}."\n");
+			shift(@$ref_records);
+		}
+		else {
+			print("+ ".$other_records->[0]{'file_path'}."\n");
+			shift(@$other_records);
+		}
+	}
+
 	return 0;
 }
 
