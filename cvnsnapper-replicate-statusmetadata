@@ -171,7 +171,10 @@ sub sort_stat_records {
 sub status_stat_recordss {
 	my ($ref_records, $other_records) = @_;
 
-	print("Ref: ".scalar(@$ref_records).", Other: ".scalar(@$other_records)."\n");
+	print("Ref records: ".scalar(@$ref_records).", Other records: ".scalar(@$other_records)."\n");
+	print("Ignoring fields: ".
+		(scalar(@ignore_fields) ? join(',', @ignore_fields) : "(none)").
+		"\n");
 
 	# Merge-compare the two sorted lists.
 	while (scalar(@$ref_records) >= 1 || scalar(@$other_records) >= 1) {
