@@ -13,5 +13,6 @@ TODO for cvnsnapper-replicate project.
   * Allow mapping of difference field names to flag chars
     like in "snapper status".
 
-  * Allow ignoring differences based on field names.
+  * Add profiles for ignoring differences based on field names.
+    (e.g., snapshot-to-other-snapshot, or source host to destination host.)
 
