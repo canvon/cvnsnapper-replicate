@@ -109,7 +109,7 @@ filter-stat() {
 	GREP_REGEX=
 	if grep -q -E '(^|,)atime(,|$)' <<<"$DIFF_EXCLUDE"
 	then
-		GREP_REGEX="${GREP_REGEX:+${GREP_REGEX}|}^Access:"
+		GREP_REGEX="${GREP_REGEX:+${GREP_REGEX}|}^Access: [0-9]"
 	fi
 	if grep -q -E '(^|,)mtime(,|$)' <<<"$DIFF_EXCLUDE"
 	then
