@@ -290,14 +290,14 @@ foreach my $ctx ($ref_ctx, $other_ctx) {
 		read_stat_records_for_ctx($ctx) or die("Read stat records for context was unsuccessful\n");
 	};
 	if (!defined($result) && $@) {
-		die("Error read-processing subvolume meta-data base path ".$ctx->{'base_path'}.": $@");  # (don't double the \n from $@)
+		die("Error read-processing subvolume meta-data for base path \"".$ctx->{'base_path'}."\": $@");  # (don't double the \n from $@)
 	}
 
 	$result = eval {
 		read_checksums_for_ctx($ctx) or die("Read checksums for context was unsuccessful\n");
 	};
 	if (!defined($result) && $@) {
-		warn("Ignoring error read-processing optional subvolume meta-data base path ".$ctx->{'base_path'}.": $@");  # (don't double the \n from $@)
+		warn("Ignoring error read-processing optional subvolume meta-data for base path \"".$ctx->{'base_path'}."\": $@");  # (don't double the \n from $@)
 	}
 }
 
