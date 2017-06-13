@@ -165,6 +165,36 @@ sub read_stat_records_for_ctx {
 	return 1;
 }
 
+sub read_checksums_for_ctx {
+	my ($ctx) = @_;
+
+	my $base_path = $ctx->{'base_path'} or die("Internal error: context's base_path was not set");  # (no \n)
+	my $checksums_path = $base_path.".sha256";
+	$ctx->{'checksums_path'} = $checksums_path;
+
+	open(my $checksums_fh, '<', $checksums_path) or die("Cannot open checksums at \"$checksums_path\": $!\n");
+
+	my $checksums_by_file_path = eval {
+		my $by_file_path = {};
+		while (<$checksums_fh>) {
+			die("Cannot extract checksum/file_path from \"$_\"\n")
+			  unless (/^([0-9a-f]+) [ *](.*)$/);
+			my ($checksum, $file_path) = ($1, $2);
+
+			$by_file_path->{$file_path} = $checksum;
+		}
+		return $by_file_path;
+	};
+	if (!defined($checksums_by_file_path) && $@) {
+		die("Error processing checksums at \"$checksums_path\": $@");  # (don't double the \n from $@)
+	}
+	$ctx->{'checksums_by_file_path'} = $checksums_by_file_path;
+
+	close($checksums_fh) or die("Cannot close checksums at \"$checksums_path\": $!\n");
+
+	return 1;
+}
+
 sub sort_stat_records {
 	sort { $a->{'file_path'} cmp $b->{'file_path'} } (@_);
 }
@@ -261,6 +291,13 @@ foreach my $ctx ($ref_ctx, $other_ctx) {
 	};
 	if (!defined($result) && $@) {
 		die("Error read-processing subvolume meta-data base path ".$ctx->{'base_path'}.": $@");  # (don't double the \n from $@)
+	}
+
+	$result = eval {
+		read_checksums_for_ctx($ctx) or die("Read checksums for context was unsuccessful\n");
+	};
+	if (!defined($result) && $@) {
+		warn("Ignoring error read-processing optional subvolume meta-data base path ".$ctx->{'base_path'}.": $@");  # (don't double the \n from $@)
 	}
 }
 
