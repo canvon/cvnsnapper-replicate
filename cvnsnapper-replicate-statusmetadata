@@ -100,6 +100,7 @@ sub diff_stat_records {
 	my $field_comparisons = [
 		{ field_name => 'file_path',      comparison => $compare_str },
 		{ field_name => 'symlink_target', comparison => $compare_str },
+		{ field_name => 'checksum',       comparison => $compare_str },
 		{ field_name => 'size',           comparison => $compare_num },
 		{ field_name => 'blocks',         comparison => $compare_num },
 		{ field_name => 'io_blocks',      comparison => $compare_num },
@@ -218,6 +219,21 @@ sub status_stat_recordss {
 			my $comparison = $ref_rec->{'file_path'} cmp $other_rec->{'file_path'};
 			if ($comparison == 0) {
 				my $common_file_path = $other_rec->{'file_path'};
+
+				# Augment stat record by fields from additional
+				# meta-data sources.
+				#
+				# Make sure to forward a field only if *both*
+				# subvolumes have the data source available.
+				if (defined(my $ref_checksums   = $ref_ctx->{'checksums_by_file_path'}) &&
+				    defined(my $other_checksums = $other_ctx->{'checksums_by_file_path'})) {
+					# Forward field without producing
+					# an existing key with an undef value.
+					$ref_rec->{'checksum'} = $ref_checksums->{$common_file_path}
+					  if (exists($ref_checksums->{$common_file_path}));
+					$other_rec->{'checksum'} = $other_checksums->{$common_file_path}
+					  if (exists($other_checksums->{$common_file_path}));
+				}
 
 				# Compare details and output difference,
 				# if some was found.
