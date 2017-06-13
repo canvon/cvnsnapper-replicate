@@ -200,7 +200,9 @@ sub sort_stat_records {
 }
 
 sub status_stat_recordss {
-	my ($ref_records, $other_records) = @_;
+	my ($ref_ctx, $other_ctx) = @_;
+	my $ref_records   = [ sort_stat_records(@{$ref_ctx->{'stat_records'}}) ];
+	my $other_records = [ sort_stat_records(@{$other_ctx->{'stat_records'}}) ];
 
 	print("Ref records: ".scalar(@$ref_records).", Other records: ".scalar(@$other_records)."\n");
 	print("Ignoring fields: ".
@@ -302,10 +304,7 @@ foreach my $ctx ($ref_ctx, $other_ctx) {
 }
 
 my $result = eval {
-	status_stat_recordss(
-		[ sort_stat_records(@{$ref_ctx->{'stat_records'}}) ],
-		[ sort_stat_records(@{$other_ctx->{'stat_records'}}) ]
-	);
+	status_stat_recordss($ref_ctx, $other_ctx);
 };
 if (!defined($result) && $@) {
 	die("Error status-processing subvolumes' stat records: $@"); # (don't double the \n from $@)
