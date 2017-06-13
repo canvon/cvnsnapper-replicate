@@ -53,6 +53,7 @@ sub parse_stat_record {
 
 	die("Parse of record's device_hex \"$device_hex\" vs. device_dec \"$device_dec\" is inconsistent\n")
 	  unless (hex($device_hex) == $device_dec);
+	$record->{'device'} = $device_dec;
 
 	die("Cannot extract record's permissions/user/group\n")
 	  unless ($record_str =~ /^Access: \((.*?)\)\s+Uid: \((.*?)\)\s+Gid: \((.*?)\)$/m);
@@ -103,7 +104,7 @@ sub diff_stat_records {
 		{ field_name => 'blocks',         comparison => $compare_num },
 		{ field_name => 'io_blocks',      comparison => $compare_num },
 		{ field_name => 'type',           comparison => $compare_str },
-		{ field_name => 'device_dec',     comparison => $compare_num },
+		{ field_name => 'device',         comparison => $compare_num },
 		{ field_name => 'inode',          comparison => $compare_num },
 		{ field_name => 'nlinks',         comparison => $compare_num },
 		{ field_name => 'perm_oct',       comparison => $compare_num },
