@@ -1,0 +1,69 @@
+#!/bin/bash
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+
+N=0
+
+for SUBVOL_NAME
+do
+	: $[N++]
+
+	DID_IT=0
+	FIELDS=$(sed -ne 's#^\(.*/\)*\([^-]\+-[^-]\+\)-\(.*\)$#DATE=\2\nDESCRIPTION=\3#p' <<<"$SUBVOL_NAME") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$FIELDS" ]
+	then
+		die "Cannot parse subvol name into fields: \"$SUBVOL_NAME\""
+	fi
+	MANGLED_DATE=$(sed -ne 's/^DATE=//p' <<<"$FIELDS") || die "Field DATE missing in parse of subvol name \"$SUBVOL_NAME\""
+	MANGLED_DESCRIPTION=$(sed -ne 's/^DESCRIPTION=//p' <<<"$FIELDS") || die "Field DESCRIPTION missing in parse of subvol name \"$SUBVOL_NAME\""
+	[ -n "$MANGLED_DATE" ] || die "Field DATE was empty in parse of subvol name \"$SUBVOL_NAME\""
+
+
+	DEMANGLED_DATE=$(perl -lne '/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/ and print("$1-$2-$3 $4:$5:$6")' <<<"$MANGLED_DATE") || die "Cannot demangle date \"$MANGLED_DATE\" for subvol name \"$SUBVOL_NAME\""
+	[ -n "$DEMANGLED_DATE" ] || die "Demangled date was empty for subvol name \"$SUBVOL_NAME\""
+
+	TS=$(date --date="$DEMANGLED_DATE" +%s) || die "Converting from demangled date \"$DEMANGLED_DATE\" to UNIX time failed"
+	[ -n "$TS" ] || die "Conversion of demangled date \"$DEMANGLED_DATE\" to UNIX time was empty"
+
+	OUT_DATE=$(date --date=@"$TS" --utc +'%F %T') || die "Converting from UNIX time \"$TS\" to output date failed"
+	[ -n "$OUT_DATE" ] || die "Conversion of UNIX time \"$TS\" to output date was empty"
+
+
+	# TODO: More demangling necessary? Or perhaps less?
+	OUT_DESCRIPTION=$(sed -e 's/_/ /g' <<<"$MANGLED_DESCRIPTION")
+
+
+	perl -e '
+		use strict; use warnings;
+
+		my ($n, $date, $description) = @ARGV;
+
+		sub replace_by_entity {
+			my ($char) = @_;
+			return "&amp;" if $char eq "&";
+			return "&lt;"  if $char eq "<";
+			return "&gt;"  if $char eq ">";
+			return ("&#".ord($char).";");
+		}
+
+		print("<?xml version=\"1.0\"?>\n");
+		print("<snapshot>\n");
+		print("  <type>single</type>\n");
+		print("  <num>$n</num>\n");
+		print("  <date>$date</date>\n");
+		print("  <uid>0</uid>\n");
+
+		$description =~ s/([&<>])/replace_by_entity($1)/ge;
+		print("  <description>$description</description>\n");
+
+		print("</snapshot>\n");
+	' "$N" "$OUT_DATE" "$OUT_DESCRIPTION"
+done
