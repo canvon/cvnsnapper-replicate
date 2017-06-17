@@ -8,7 +8,7 @@ TODO for cvnsnapper-replicate project.
   * Add, implement.
 
 
-## cvnsnapper-replicate-statusmetadata
+## cvnsnapper-plain-statusmetadata
 
   * Allow mapping of difference field names to flag chars
     like in "snapper status".
