@@ -69,6 +69,8 @@ do
 	esac
 done
 
+[ "$#" -ge 1 ] || die "$USAGE"
+
 # Parse rest of command line arguments as subvol names
 # to decode & convert to snapper info.xml files.
 for SUBVOL_NAME
