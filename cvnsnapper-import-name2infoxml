@@ -12,6 +12,29 @@ die() {
 
 N=0
 
+USAGE="Usage: $0 SUBVOL_NAME [...]"
+
+# Parse options.
+while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+do
+	case "$1" in
+	--help|--usage)
+		shift
+		echo "$USAGE"
+		exit 0
+		;;
+	--last-num=*)
+		N="${1#--last-num=}"
+		shift
+		;;
+	*)
+		die "Invalid option \"$1\""
+		;;
+	esac
+done
+
+# Parse rest of command line arguments as subvol names
+# to decode & convert to snapper info.xml files.
 for SUBVOL_NAME
 do
 	: $[N++]
