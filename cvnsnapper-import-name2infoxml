@@ -10,9 +10,39 @@ die() {
 }
 
 
-N=0
+interpolate-into-infoxml() {
+	perl -e '
+		use strict; use warnings;
 
-USAGE="Usage: $0 SUBVOL_NAME [...]"
+		my ($n, $date, $description) = @ARGV;
+
+		sub replace_by_entity {
+			my ($char) = @_;
+			return "&amp;" if $char eq "&";
+			return "&lt;"  if $char eq "<";
+			return "&gt;"  if $char eq ">";
+			return ("&#".ord($char).";");
+		}
+
+		print("<?xml version=\"1.0\"?>\n");
+		print("<snapshot>\n");
+		print("  <type>single</type>\n");
+		print("  <num>$n</num>\n");
+		print("  <date>$date</date>\n");
+		print("  <uid>0</uid>\n");
+
+		$description =~ s/([&<>])/replace_by_entity($1)/ge;
+		print("  <description>$description</description>\n");
+
+		print("</snapshot>\n");
+	' "$@"
+}
+
+
+N=0
+CREATE_IN_SNAPSHOTS_SUBVOL=
+
+USAGE="Usage: $0 [--last-num=N] [--create-in-snapshots-subvol=DOT_SNAPSHOTS_SUBVOL] SUBVOL_NAME [...]"
 
 # Parse options.
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
@@ -26,6 +56,12 @@ do
 	--last-num=*)
 		N="${1#--last-num=}"
 		shift
+		;;
+	--create-in-snapshots-subvol=*)
+		CREATE_IN_SNAPSHOTS_SUBVOL="${1#--create-in-snapshots-subvol=}"
+		shift
+		[ -d "$CREATE_IN_SNAPSHOTS_SUBVOL" ] || die "Cannot create in snapshots subvol \"$CREATE_IN_SNAPSHOTS_SUBVOL\": Not a directory"
+		[ "$(stat --format=%i "$CREATE_IN_SNAPSHOTS_SUBVOL")" -eq 256 ] || die "Cannot create in snapshots subvol \"$CREATE_IN_SNAPSHOTS_SUBVOL\": Not a btrfs subvolume"
 		;;
 	*)
 		die "Invalid option \"$1\""
@@ -64,29 +100,19 @@ do
 	OUT_DESCRIPTION=$(sed -e 's/_/ /g' <<<"$MANGLED_DESCRIPTION")
 
 
-	perl -e '
-		use strict; use warnings;
+	if [ -z "$CREATE_IN_SNAPSHOTS_SUBVOL" ]
+	then
+		interpolate-into-infoxml "$N" "$OUT_DATE" "$OUT_DESCRIPTION" || die "Interpolating collected data into info.xml format failed for subvol name \"$SUBVOL_NAME\""
+	else
+		OUT_DIR="$CREATE_IN_SNAPSHOTS_SUBVOL/$N"
+		if ! [ -d "$OUT_DIR" ]
+		then
+			mkdir "$OUT_DIR" || die "Cannot create directory for snapper meta-data and read-only snapshot at \"$OUT_DIR\" for subvol name \"$SUBVOL_NAME\""
+		fi
 
-		my ($n, $date, $description) = @ARGV;
+		OUT_INFO_XML="$OUT_DIR/info.xml"
+		[ -e "$OUT_INFO_XML" ] && die "Output file \"$OUT_INFO_XML\" for snapper meta-data already exists (for subvol name \"$SUBVOL_NAME\")"
 
-		sub replace_by_entity {
-			my ($char) = @_;
-			return "&amp;" if $char eq "&";
-			return "&lt;"  if $char eq "<";
-			return "&gt;"  if $char eq ">";
-			return ("&#".ord($char).";");
-		}
-
-		print("<?xml version=\"1.0\"?>\n");
-		print("<snapshot>\n");
-		print("  <type>single</type>\n");
-		print("  <num>$n</num>\n");
-		print("  <date>$date</date>\n");
-		print("  <uid>0</uid>\n");
-
-		$description =~ s/([&<>])/replace_by_entity($1)/ge;
-		print("  <description>$description</description>\n");
-
-		print("</snapshot>\n");
-	' "$N" "$OUT_DATE" "$OUT_DESCRIPTION"
+		interpolate-into-infoxml "$N" "$OUT_DATE" "$OUT_DESCRIPTION" >"$OUT_INFO_XML" || die "Interpolating collected data into info.xml at \"$OUT_INFO_XML\" failed for subvol name \"$SUBVOL_NAME\""
+	fi
 done
