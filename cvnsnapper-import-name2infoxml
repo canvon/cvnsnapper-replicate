@@ -78,7 +78,7 @@ do
 	: $[N++]
 
 	DID_IT=0
-	FIELDS=$(sed -ne 's#^\(.*/\)*\([^-]\+-[^-]\+\)-\(.*\)$#DATE=\2\nDESCRIPTION=\3#p' <<<"$SUBVOL_NAME") && DID_IT=1
+	FIELDS=$(sed -ne 's#^\(.*/\)\?\([^-@]\+[-@]\)\?\([^-]\+[-_][^-]\+\)-\(.*\)$#DATE=\3\nDESCRIPTION=\4#p' <<<"$SUBVOL_NAME") && DID_IT=1
 	if [ "$DID_IT" -eq 0 ] || [ -z "$FIELDS" ]
 	then
 		die "Cannot parse subvol name into fields: \"$SUBVOL_NAME\""
@@ -88,7 +88,7 @@ do
 	[ -n "$MANGLED_DATE" ] || die "Field DATE was empty in parse of subvol name \"$SUBVOL_NAME\""
 
 
-	DEMANGLED_DATE=$(perl -lne '/(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})/ and print("$1-$2-$3 $4:$5:$6")' <<<"$MANGLED_DATE") || die "Cannot demangle date \"$MANGLED_DATE\" for subvol name \"$SUBVOL_NAME\""
+	DEMANGLED_DATE=$(perl -pe 's/^(\d{4})(\d{2})(\d{2})[-_](\d{2})(\d{2})(\d{2})?$/$1-$2-$3 $4:$5:$6/; s/:$/:00/' <<<"$MANGLED_DATE") || die "Cannot demangle date \"$MANGLED_DATE\" for subvol name \"$SUBVOL_NAME\""
 	[ -n "$DEMANGLED_DATE" ] || die "Demangled date was empty for subvol name \"$SUBVOL_NAME\""
 
 	TS=$(date --date="$DEMANGLED_DATE" +%s) || die "Converting from demangled date \"$DEMANGLED_DATE\" to UNIX time failed"
