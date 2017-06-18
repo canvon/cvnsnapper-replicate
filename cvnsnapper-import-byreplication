@@ -1,0 +1,85 @@
+#!/bin/bash
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+
+LAST_SNAPSHOT_SUBVOL=
+DEST_N=0
+DEST_DOT_SNAPSHOTS_SUBVOL=
+
+USAGE="Usage: $0 [--last-snapshot=LAST_SNAPSHOT_SUBVOL] [--dest-last-num=N] --dest-snapshots-subvol=DEST_DOT_SNAPSHOTS_SUBVOL SNAPSHOT_SUBVOL [...]"
+
+while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+do
+	case "$1" in
+	--help|--usage)
+		shift
+		echo "$USAGE"
+		exit 0
+		;;
+	--last-snapshot=*)
+		LAST_SNAPSHOT_SUBVOL="${1#--last-snapshot=}"
+		[ -d "$LAST_SNAPSHOT_SUBVOL" ] || die "Invalid last snapshot subvol \"$LAST_SNAPSHOT_SUBVOL\": Not a directory"
+		[ "$(stat --format=%i "$LAST_SNAPSHOT_SUBVOL")" -eq 256 ] || die "Invalid last snapshot subvol \"$LAST_SNAPSHOT_SUBVOL\": Not a btrfs subvolume"
+		shift
+		;;
+	--dest-last-num=*)
+		DEST_N="${1#--dest-last-num=}"
+		shift
+		;;
+	--dest-snapshots-subvol=*)
+		DEST_DOT_SNAPSHOTS_SUBVOL="${1#--dest-snapshots-subvol=}"
+		shift
+		[ -d "$DEST_DOT_SNAPSHOTS_SUBVOL" ] || die "Invalid destination .snapshots subvol \"$DEST_DOT_SNAPSHOTS_SUBVOL\": Not a directory"
+		[ "$(stat --format=%i "$DEST_DOT_SNAPSHOTS_SUBVOL")" -eq 256 ] || die "Invalid destination .snapshots subvol \"$DEST_DOT_SNAPSHOTS_SUBVOL\": Not a btrfs subvolume"
+		;;
+	*)
+		die "Invalid option \"$1\""
+		;;
+	esac
+done
+
+[ -n "$DEST_DOT_SNAPSHOTS_SUBVOL" ] || die "Required option --dest-snapshots-subvol=DEST_DOT_SNAPSHOTS_SUBVOL missing"
+
+[ "$#" -ge 1 ] || die "$USAGE"
+
+
+for SNAPSHOT_SUBVOL
+do
+	: $[DEST_N++]
+
+	SNAPSHOT_BASENAME="${SNAPSHOT_SUBVOL#*/}"
+	SNAPSHOT_NAME="${SNAPSHOT_BASENAME#*@}"
+
+	#
+	# Consider plain snapshot name verbosely.
+	#
+
+	echo -n "Plain snapshot of name \"$SNAPSHOT_NAME\" to snapper snapshot number $DEST_N${LAST_SNAPSHOT_SUBVOL:+ (incremental)}: "
+
+	DEST_DIR="$DEST_DOT_SNAPSHOTS_SUBVOL/$DEST_N"
+	[ -e "$DEST_DIR" ] && { echo "(error)"; die "Destination directory \"$DEST_DIR\" already exists for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
+
+	cvnsnapper-import-name2infoxml --last-num="$DEST_N" --create-in-snapshots-subvol="$DEST_DOT_SNAPSHOTS_SUBVOL" "$SNAPSHOT_NAME" || { echo "(error)"; die "Creating destination snapper snapshot meta-data in \"$DEST_DOT_SNAPSHOTS_SUBVOL\" failed for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
+	[ -d "$DEST_DIR" ] || { echo "(error)"; die "cvnsnapper-import-name2infoxml apparently failed to create destination directory \"$DEST_DIR\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
+	[ -f "$DEST_DIR/info.xml" ] || { echo "(error)"; die "cvnsnapper-import-name2infoxml apparently failed to create destination directory \"$DEST_DIR\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
+
+	# Now do the real transfer.
+	set -o pipefail || warn "Warning: Couldn't activate shell option 'pipefail', please double-check there were no errors!"
+	btrfs send ${LAST_SNAPSHOT_SUBVOL:+-p "$LAST_SNAPSHOT_SUBVOL"} "$SNAPSHOT_SUBVOL" | \
+	btrfs receive "$DEST_DIR/" || die "Couldn't ${LAST_SNAPSHOT_SUBVOL:+incremental-}transfer source plain snapshot \"$SNAPSHOT_SUBVOL\" (btrfs send) to destination directory \"$DEST_DIR\" (btrfs receive)"
+
+	( cd "$DEST_DIR" && mv "$SNAPSHOT_BASENAME" snapshot ) || die "Couldn't rename destination snapshot from its basename \"$SNAPSHOT_BASENAME\" to snapper unified snapshot name \"snapshot\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""
+
+	# Remember this snapshot as parent for the transfer of the next snapshot.
+	LAST_SNAPSHOT_SUBVOL="$SNAPSHOT_SUBVOL"
+done
+
+exit 0
