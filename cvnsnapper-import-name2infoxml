@@ -78,7 +78,7 @@ do
 	: $[N++]
 
 	DID_IT=0
-	FIELDS=$(sed -ne 's#^\(.*/\)\?\([^-@]\+[-@]\)\?\([^-]\+[-_][^-]\+\)-\(.*\)$#DATE=\3\nDESCRIPTION=\4#p' <<<"$SUBVOL_NAME") && DID_IT=1
+	FIELDS=$(sed -ne 's#^\(.*/\)\?\([^-@]\+[-@]\)\?\([:0-9]\+[-_][:0-9]\+\)-\(.*\)$#DATE=\3\nDESCRIPTION=\4#p' <<<"$SUBVOL_NAME") && DID_IT=1
 	if [ "$DID_IT" -eq 0 ] || [ -z "$FIELDS" ]
 	then
 		die "Cannot parse subvol name into fields: \"$SUBVOL_NAME\""
