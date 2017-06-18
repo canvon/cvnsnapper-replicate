@@ -64,7 +64,9 @@ done
 for SNAPSHOT_SUBVOL
 do
 	SNAPSHOT_BASENAME="${SNAPSHOT_SUBVOL#*/}"
-	SNAPSHOT_NAME="${SNAPSHOT_BASENAME#*@}"
+	#SNAPSHOT_NAME="${SNAPSHOT_BASENAME#*@}"
+	SNAPSHOT_NAME="${SNAPSHOT_BASENAME}"
+	# ^ cvnsnapper-import-name2infoxml should now be able to handle this itself.
 	DEST_N="$[DEST_LAST_NUM+1]"
 
 	#
