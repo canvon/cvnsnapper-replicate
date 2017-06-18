@@ -115,6 +115,7 @@ do
 		OUT_INFO_XML="$OUT_DIR/info.xml"
 		[ -e "$OUT_INFO_XML" ] && die "Output file \"$OUT_INFO_XML\" for snapper meta-data already exists (for subvol name \"$SUBVOL_NAME\")"
 
-		interpolate-into-infoxml "$N" "$OUT_DATE" "$OUT_DESCRIPTION" >"$OUT_INFO_XML" || die "Interpolating collected data into info.xml at \"$OUT_INFO_XML\" failed for subvol name \"$SUBVOL_NAME\""
+		# (umask: Try to make the created info.xml group-/world-inaccessible, like snapper does.)
+		( umask 077; interpolate-into-infoxml "$N" "$OUT_DATE" "$OUT_DESCRIPTION" >"$OUT_INFO_XML" ) || die "Interpolating collected data into info.xml at \"$OUT_INFO_XML\" failed for subvol name \"$SUBVOL_NAME\""
 	fi
 done
