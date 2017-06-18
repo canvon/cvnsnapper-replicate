@@ -71,14 +71,14 @@ do
 	# Consider plain snapshot name verbosely.
 	#
 
-	echo -n "Plain snapshot of name \"$SNAPSHOT_NAME\" to snapper snapshot number $DEST_N${LAST_SNAPSHOT_SUBVOL:+ (incremental)}: "
+	echo "Plain snapshot of name \"$SNAPSHOT_NAME\" to snapper snapshot number $DEST_N${LAST_SNAPSHOT_SUBVOL:+ (incremental)}:"
 
 	DEST_DIR="$DEST_DOT_SNAPSHOTS_SUBVOL/$DEST_N"
-	[ -e "$DEST_DIR" ] && { echo "(error)"; die "Destination directory \"$DEST_DIR\" already exists for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
+	[ -e "$DEST_DIR" ] && die "Destination directory \"$DEST_DIR\" already exists for source plain snapshot \"$SNAPSHOT_SUBVOL\""
 
-	"${CVNSNAPPER_IMPORT_NAME2INFOXML_BIN:-cvnsnapper-import-name2infoxml}" --last-num="$DEST_LAST_NUM" --create-in-snapshots-subvol="$DEST_DOT_SNAPSHOTS_SUBVOL" "$SNAPSHOT_NAME" || { echo "(error)"; die "Creating destination snapper snapshot meta-data in \"$DEST_DOT_SNAPSHOTS_SUBVOL\" failed for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
-	[ -d "$DEST_DIR" ] || { echo "(error)"; die "cvnsnapper-import-name2infoxml apparently failed to create destination directory \"$DEST_DIR\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
-	[ -f "$DEST_DIR/info.xml" ] || { echo "(error)"; die "cvnsnapper-import-name2infoxml apparently failed to create destination directory \"$DEST_DIR\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""; }
+	"${CVNSNAPPER_IMPORT_NAME2INFOXML_BIN:-cvnsnapper-import-name2infoxml}" --last-num="$DEST_LAST_NUM" --create-in-snapshots-subvol="$DEST_DOT_SNAPSHOTS_SUBVOL" "$SNAPSHOT_NAME" || die "Creating destination snapper snapshot meta-data in \"$DEST_DOT_SNAPSHOTS_SUBVOL\" failed for source plain snapshot \"$SNAPSHOT_SUBVOL\""
+	[ -d "$DEST_DIR" ] || die "cvnsnapper-import-name2infoxml apparently failed to create destination directory \"$DEST_DIR\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""
+	[ -f "$DEST_DIR/info.xml" ] || die "cvnsnapper-import-name2infoxml apparently failed to create destination directory \"$DEST_DIR\" for source plain snapshot \"$SNAPSHOT_SUBVOL\""
 
 	# Now do the real transfer.
 	set -o pipefail || warn "Warning: Couldn't activate shell option 'pipefail', please double-check there were no errors!"
