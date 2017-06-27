@@ -153,11 +153,12 @@ sub read_stat_records_for_ctx {
 
 	open(my $stat_log_fh, '<', $stat_log_path) or die("Cannot open stat log at \"$stat_log_path\": $!\n");
 
+	my $record_num = 0;
 	my @records = eval {
-		map { parse_stat_record } (read_stat_records_from_fh($stat_log_fh));
+		map { $record_num++, parse_stat_record } (read_stat_records_from_fh($stat_log_fh));
 	};
 	if (scalar(@records) == 0 && $@) {
-		die("Error processing stat log at \"$stat_log_path\": $@");  # (don't double the \n from $@)
+		die("Error processing stat log at \"$stat_log_path\", record number $record_num: $@");  # (don't double the \n from $@)
 	}
 	$ctx->{'stat_records'} = \@records;
 
