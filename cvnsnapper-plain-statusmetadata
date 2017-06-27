@@ -62,7 +62,7 @@ sub parse_stat_record {
 	@$record{'perm_str', 'uid_str', 'gid_str'} = ($perm_str, $uid_str, $gid_str);
 
 	die("Cannot parse record's perm_str\n")
-	  unless ($perm_str =~ /^\s*([0-7]+)\s*\/\s*([-a-z]+)\s*$/);
+	  unless ($perm_str =~ /^\s*([0-7]+)\s*\/\s*([-A-Za-z]+)\s*$/);
 	@$record{'perm_oct', 'perm_long'} = ($1, $2);
 
 	die("Cannot parse record's uid_str\n")
