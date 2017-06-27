@@ -41,9 +41,10 @@ sub parse_stat_record {
 	  unless ($record_str =~ /^  Size: (\d+)\s+Blocks: (\d+)\s+IO Block: (\d+)\s+(.*?)$/m);
 	@$record{'size', 'blocks', 'io_block', 'type'} = ($1, $2, $3, $4);
 
-	die("Cannot extract record's device_str/inode/nlinks\n")
-	  unless ($record_str =~ /^Device: (\S+)\s+Inode: (\d+)\s+Links: (\d+)$/m);
+	die("Cannot extract record's device_str/inode/nlinks[/device_type]\n")
+	  unless ($record_str =~ /^Device: (\S+)\s+Inode: (\d+)\s+Links: (\d+)(?:\s+Device type:\s+([0-9a-f]+,[0-9a-f]+))?$/m);
 	@$record{'device_str', 'inode', 'nlinks'} = ($1, $2, $3);
+	$record->{'device_type'} = $4 if defined($4);
 	my $device_str = $record->{'device_str'};
 
 	die("Cannot parse record's device_str\n")
@@ -108,6 +109,7 @@ sub diff_stat_records {
 		{ field_name => 'device',         comparison => $compare_num },
 		{ field_name => 'inode',          comparison => $compare_num },
 		{ field_name => 'nlinks',         comparison => $compare_num },
+		{ field_name => 'device_type',    comparison => $compare_str },
 		{ field_name => 'perm_oct',       comparison => $compare_num },
 		{ field_name => 'perm_long',      comparison => $compare_str },
 		{ field_name => 'uid',            comparison => $compare_num },
