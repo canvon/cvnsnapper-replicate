@@ -13,6 +13,40 @@ $SIG{'__DIE__'}  = sub { die ("$basename: Fatal: ", @_) unless $^S; die(@_); };
 our @ignore_fields;
 
 
+our @ignore_profiles_list = (
+	{ profile_name => "same",       ignore_fields => [qw()], },
+	{ profile_name => "snapshots",  ignore_fields => [qw(device)], },
+	{ profile_name => "replicated", ignore_fields => [qw(device inode blocks ctime)], },
+);
+
+$ignore_profiles_list[0]->{'profile_name'} eq "same" and
+$ignore_profiles_list[0]->{'description'} = <<EOF;
+For taking the status between two cvnsnapper-plain-genmetadata runs
+on the same subvolume. (e.g., no snapshots or replication are involved.)
+This ignore profile is included for clarity only, and its list of
+ignore fields is empty.
+EOF
+
+$ignore_profiles_list[1]->{'profile_name'} eq "snapshots" and
+$ignore_profiles_list[1]->{'description'} = <<EOF;
+At least one of the two input sets of meta-data is from a (different)
+snapshot, so a status change in the device field is to be expected.
+EOF
+
+$ignore_profiles_list[2]->{'profile_name'} eq "replicated" and
+$ignore_profiles_list[2]->{'description'} = <<EOF;
+Replication has been involved, there will be many status differences
+between the set of meta-data taken on the source and the destination
+host. This profile's list of ignore fields contains filesystem meta-data
+that is likely to always be different, but fields that pertain to
+file meta-data that is transferrable will not be ignored.
+EOF
+
+our %ignore_profiles;
+$ignore_profiles{$_->{'profile_name'}} = $_
+  foreach (@ignore_profiles_list);
+
+
 sub parse_stat_record {
 	my ($record_str) = scalar(@_) ? @_ : ($_);
 	my $record = {
@@ -283,6 +317,8 @@ our $usage = "Usage: $0 DIFF_SUBVOL_WITH_INFIX SUBVOL_WITH_INFIX";
 while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 	my $opt = shift;
 	for ($opt) {
+		my ($opt_name) = /^([^=]+)/;
+
 		if (/^--(help|usage)$/) {
 			print("$usage\n");
 			exit(0);
@@ -292,6 +328,31 @@ while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 		}
 		elsif (/^--set-ignore-fields=(.*)$/) {
 			@ignore_fields = split(/,/, $1);
+		}
+		elsif (/^--(?:(add|set)-)?ignore-profile=(.*)$/) {
+			my $is_replace_mode = defined($1) && $1 eq "set";
+			my $profile_requested = $2;
+			if ($profile_requested =~ /^(?:help|usage)$/) {
+				print("Supported status ignore profiles:");
+				print(" ".$_->{'profile_name'})
+				  foreach (@ignore_profiles_list);
+				print("\n");
+
+				# TODO: print("Use --usage-profile to get long descriptions.\n");
+
+				exit(0);
+			}
+
+			my $ignore_profile = $ignore_profiles{$profile_requested};
+			die("Invalid argument \"$profile_requested\" to option \"$opt_name\"; use $opt_name=help to get a list of supported values.\n")
+			  unless defined($ignore_profile);
+
+			if ($is_replace_mode) {
+				@ignore_fields = @{$ignore_profile->{'ignore_fields'}};
+			}
+			else {
+				push(@ignore_fields, @{$ignore_profile->{'ignore_fields'}});
+			}
 		}
 		else {
 			die("Invalid option \"$opt\"\n");
