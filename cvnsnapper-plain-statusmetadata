@@ -157,7 +157,7 @@ sub read_stat_records_for_ctx {
 
 	my $record_num = 0;
 	my @records = eval {
-		map { $record_num++, parse_stat_record } (read_stat_records_from_fh($stat_log_fh));
+		map { $record_num++; parse_stat_record } (read_stat_records_from_fh($stat_log_fh));
 	};
 	if (scalar(@records) == 0 && $@) {
 		die("Error processing stat log at \"$stat_log_path\", record number $record_num: $@");  # (don't double the \n from $@)
