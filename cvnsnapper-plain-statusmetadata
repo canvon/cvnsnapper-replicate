@@ -40,6 +40,11 @@ between the set of meta-data taken on the source and the destination
 host. This profile's list of ignore fields contains filesystem meta-data
 that is likely to always be different, but fields that pertain to
 file meta-data that is transferrable will not be ignored.
+.
+Note that the subvolume root directory is expected to differ in mtime
+after a "btrfs send | btrfs receive" operation, so if you get a status
+change of "mtime ." and nothing else, that is about the minimum
+list of changes to be expected.
 EOF
 
 our %ignore_profiles;
