@@ -343,6 +343,18 @@ while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 			print($usage_long);
 			exit(0);
 		}
+		elsif (/^--(help|usage)-profile$/) {
+			print("Descriptions of supported ignore profiles:\n");
+			foreach my $ignore_profile (@ignore_profiles_list) {
+				print("  Profile \"".$ignore_profile->{'profile_name'}."\"".
+				      " -> ignore fields \"".join(',', @{$ignore_profile->{'ignore_fields'}})."\"".
+				      "\n");
+				my $description = $ignore_profile->{'description'};
+				$description =~ s/^/    /gm;
+				print($description);
+			}
+			exit(0);
+		}
 		elsif (/^--(?:add-)?ignore-fields=(.*)$/) {
 			push(@ignore_fields, split(/,/, $1));
 		}
@@ -358,7 +370,7 @@ while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 				  foreach (@ignore_profiles_list);
 				print("\n");
 
-				# TODO: print("Use --usage-profile to get long descriptions.\n");
+				print("Use --usage-profile to get long descriptions.\n");
 
 				exit(0);
 			}
