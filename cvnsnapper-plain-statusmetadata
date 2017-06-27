@@ -312,7 +312,27 @@ sub status_stat_recordss {
 }
 
 
-our $usage = "Usage: $0 DIFF_SUBVOL_WITH_INFIX SUBVOL_WITH_INFIX";
+our $usage = <<EOF;
+Usage: $0 [--ignore-fields=...] [--ignore-profile=...] [OTHER_OPTIONS] DIFF_SUBVOL_WITH_INFIX SUBVOL_WITH_INFIX
+Get status comparison between two sets of files representing btrfs snapshot/subvolume meta-data.
+EOF
+our $usage_long = <<EOF;
+$usage
+Options are:
+  --help, --usage               This text.
+
+  --ignore-fields=FIELDS,
+  --add-ignore-fields=FIELDS    Add to list of fields to ignore.
+  --set-ignore-fields=FIELDS    Override list collected so far.
+                                FIELDS is a comma-separated list of field names.
+
+  --ignore-profile=PROFILE,
+  --add-ignore-profile=PROFILE  Add to list of fields to ignore.
+  --set-ignore-profile=PROFILE  Override list collected so far.
+                                PROFILE stands for a list of fields.
+				Use the word "help" as PROFILE to get a list
+				of supported values: --ignore-profile=help
+EOF
 
 while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 	my $opt = shift;
@@ -320,7 +340,7 @@ while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 		my ($opt_name) = /^([^=]+)/;
 
 		if (/^--(help|usage)$/) {
-			print("$usage\n");
+			print($usage_long);
 			exit(0);
 		}
 		elsif (/^--(?:add-)?ignore-fields=(.*)$/) {
@@ -360,7 +380,7 @@ while (scalar(@ARGV) >= 1 && $ARGV[0] =~ /^-/) {
 	}
 }
 
-scalar(@ARGV) == 2 or die("$usage\n");
+scalar(@ARGV) == 2 or die($usage);
 
 my ($ref_base_path, $other_base_path) = @ARGV;
 
