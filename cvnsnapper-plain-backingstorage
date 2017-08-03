@@ -51,7 +51,23 @@ get-dev-parents() {
 
 	[ -n "$DEV_TYPE" ] || die "Internal error: get-device-parents couldn't determine device type for device path \"$DEV\""
 
-	case "$[DEV_MAJOR_HEX],$[DEV_MINOR_HEX],$DEV_TYPE" in
+	local DEV_MAJOR=
+	if [ -n "$DEV_MAJOR_HEX" ]
+	then
+		DEV_MAJOR="$[DEV_MAJOR_HEX]"
+		[ -n "$DEV_MAJOR" ] || warn "Internal error: Converting hex \"$DEV_MAJOR_HEX\" to decimal failed"
+	fi
+	[ -n "$DEV_MAJOR" ] || DEV_MAJOR="unknown"
+
+	local DEV_MINOR=
+	if [ -n "$DEV_MINOR_HEX" ]
+	then
+		DEV_MINOR="$[DEV_MINOR_HEX]"
+		[ -n "$DEV_MINOR" ] || warn "Internal error: Converting hex \"$DEV_MINOR_HEX\" to decimal failed"
+	fi
+	[ -n "$DEV_MINOR" ] || DEV_MINOR="unknown"
+
+	case "$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE" in
 	*,*,f)
 		# Regular file -- search ends here.
 		# TODO: Continue with the containing file system ...
@@ -62,7 +78,7 @@ get-dev-parents() {
 	8,*,b)
 		# SCSI (or, today, about any type of) disk -- search ends here.
 		local OUT_DEV_TYPE="SCSI-alike disk"
-		local DISK_INDEX="$[DEV_MINOR_HEX / 16]" PART_NR="$[DEV_MINOR_HEX % 16]"
+		local DISK_INDEX="$[DEV_MINOR / 16]" PART_NR="$[DEV_MINOR % 16]"
 		local DISK_ALPHA="$(perl -le "print(chr(ord('a') + $DISK_INDEX))")"
 		if [ "$PART_NR" -eq 0 ]
 		then
@@ -74,8 +90,8 @@ get-dev-parents() {
 		return 0
 		;;
 	254,*,b)
-		# device mapper (DM)
-		echo DEV_TYPE "device mapper (DM, major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+		# device-mapper (DM)
+		echo DEV_TYPE "device-mapper (DM, major:minor $DEV_MAJOR:$DEV_MINOR)"
 
 		local FAILED=0 DEV_PARENTS_LINE= DEV_PARENTS=
 		DEV_PARENTS_LINE=$(dmsetup deps -o devname "$DEV") || FAILED=1
@@ -107,11 +123,11 @@ get-dev-parents() {
 		# Fallback -- search ends here, for now. User has to see
 		# for himself whether this device type has any backing storage
 		# of its own.
-		echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+		echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
 		return 0
 		;;
 	*)
-		warn "Warning: get-device-parents does not know how to determine backing storage of device path \"$DEV\" (dev type \"$DEV_TYPE\", major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+		warn "Warning: get-device-parents does not know how to determine backing storage of device path \"$DEV\" (dev type \"$DEV_TYPE\", major:minor $DEV_MAJOR:$DEV_MINOR)"
 		return 1
 		;;
 	esac
