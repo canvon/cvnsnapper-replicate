@@ -133,14 +133,7 @@ get-device-parents() {
 	[ -n "$DEV_MINOR" ] || DEV_MINOR="unknown"
 
 	case "$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE" in
-	*,*,f)
-		# Regular file -- search ends here.
-		# TODO: Continue with the containing file system ...
-		warn "Warning: get-device-parents got to a regular file, \"$DEV\", but won't recurse into file systems, yet"
-		echo DEV_TYPE "regular file"
-		return 0
-		;;
-	*,*,d)
+	*,*,[fd])
 		local DID_IT=0 FS_TYPE=
 		FS_TYPE_LINES="$(df --output=fstype,source "$DEV")" && DID_IT=1
 		if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
@@ -156,7 +149,7 @@ get-device-parents() {
 			return 1
 		fi
 
-		echo DEV_TYPE "directory of filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\""
+		echo DEV_TYPE "$DEV_FILE_TYPE on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\""
 
 		case "$FS_TYPE" in
 		btrfs)
