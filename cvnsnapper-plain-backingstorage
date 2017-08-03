@@ -135,30 +135,61 @@ get-device-parents() {
 	case "$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE" in
 	*,*,[fd])
 		# File or directory; use df to get at parent device!
-		local DID_IT=0 FS_TYPE=
-		FS_TYPE_LINES="$(df --output=fstype,source "$DEV")" && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
+		local DEV_MOUNT_POINT="$DEV"
+		local LOOP_COUNTER=0 FS_TYPE= FS_SOURCE= FS_TARGET=
+		while [ "$[++LOOP_COUNTER]" -eq 1 ] || { [ "$FS_TYPE" = "-" ] && [ "$FS_SOURCE" = "-" ]; }
+		do
+			# (Arbitrary limit, but it can't be helped. (?)
+			# Else we risk an endless loop.)
+			if [ "$LOOP_COUNTER" -gt 50 ]
+			then
+				warn "Error: get-device-parents can't determine filesystem mount point for \"$DEV\", giving up at try $LOOP_COUNTER with last candidate mount point \"$DEV_MOUNT_POINT\" (result \"$FS_TARGET\")"
+				return 1
+			fi
+
+			if [ "$LOOP_COUNTER" -gt 1 ]
+			then
+				# If it's a non-directory (e.g., a file), strip off file name
+				# to get to something that has ".." (parent directory).
+				[ -d "$DEV_MOUNT_POINT" ] || DEV_MOUNT_POINT="${DEV_MOUNT_POINT%/*}"
+
+				# Next try: Parent directory.
+				DEV_MOUNT_POINT="$DEV_MOUNT_POINT/.."
+			fi
+
+			local DID_IT=0 FS_TYPE_LINES=
+			FS_TYPE_LINES="$(df --output=fstype,source,target "$DEV_MOUNT_POINT")" && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
+			then
+				warn "Error: get-device-parents can't determine filesystem type (df failed) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
+				return 1
+			fi
+			local DUMMY
+			read FS_TYPE FS_SOURCE FS_TARGET DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
+			if [ -z "$FS_TYPE" ]
+			then
+				warn "Error: get-device-parents can't determine filesystem type (can't parse df output) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
+				return 1
+			fi
+		done
+		if [ "$FS_TYPE" = "-" ]
 		then
-			warn "Warning: get-device-parents can't determine filesystem type (df failed) for \"$DEV\""
-			return 1
-		fi
-		local FS_TYPE= FS_SOURCE= DUMMY=
-		read FS_TYPE FS_SOURCE DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
-		if [ -z "$FS_TYPE" ]
-		then
-			warn "Warning: get-device-parents can't determine filesystem type (can't parse df output) for \"$DEV\""
-			return 1
-		elif [ "$FS_TYPE" = "-" ]
-		then
-			warn "Warning: get-device-parents can't determine filesystem type (df doesn't know) for \"$DEV\""
+			warn "Error: get-device-parents can't determine filesystem type (df doesn't know) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
 			return 1
 		fi
 
-		echo DEV_TYPE "$DEV_FILE_TYPE on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\""
+		echo DEV_TYPE "$DEV_FILE_TYPE on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
 
 		case "$FS_TYPE" in
 		btrfs)
-			get-btrfs-parents "$DEV"
+			case "$FS_TARGET" in
+			""|"-"|"none")
+				warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for \"btrfs filesystem show\" call"
+				return 1
+				;;
+			esac
+
+			get-btrfs-parents "$FS_TARGET"
 			return
 			;;
 		*)
