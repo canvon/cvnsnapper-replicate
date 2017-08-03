@@ -159,7 +159,7 @@ recurse-device-parents() {
 			continue
 		fi
 
-		local NUM_KEYS=0 DEV_PARENTS=()
+		local NUM_KEYS=0 NUM_DEV_TYPE=0 DEV_PARENTS=()
 		while read KEY VALUE
 		do
 			case "$KEY" in
@@ -169,6 +169,8 @@ recurse-device-parents() {
 				continue
 				;;
 			DEV_TYPE)
+				: $[NUM_DEV_TYPE++]
+
 				if [ "$VERBOSE" -ge 1 ]
 				then
 					echo "$INDENT* Type: $VALUE"
@@ -190,6 +192,8 @@ recurse-device-parents() {
 		done <<<"$DEV_PARENTS_LINES"
 
 		[ "$NUM_KEYS" -gt 0 ] || die "Internal error: get-device-parents gave no useable output for device path \"$DEV\""
+
+		[ "$NUM_DEV_TYPE" -gt 0 ] || die "Internal error: get-device-parents omitted the DEV_TYPE key for device path \"$DEV\""
 
 		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${DEV_PARENTS[@]}"
 	done
