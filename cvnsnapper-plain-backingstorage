@@ -18,8 +18,8 @@ get-dev-parents() {
 	local DEV="$1"
 	shift
 
-	local DID_IT=0
-	local DEV_STAT_LINE=$(stat -L -c "0x%t 0x%T %F" "$DEV") && DID_IT=1
+	local DID_IT=0 DEV_STAT_LINE=
+	DEV_STAT_LINE=$(stat -L -c "0x%t 0x%T %F" "$DEV") && DID_IT=1
 	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_STAT_LINE" ]
 	then
 		warn "Warning: get-device-parents can't get stat information for device path \"$DEV\""
@@ -101,7 +101,9 @@ recurse-dev-parents() {
 	local DEV
 	for DEV
 	do
-		if ! local DEV_PARENTS_LINES=$(get-dev-parents "$DEV")
+		local DID_IT=0 DEV_PARENTS_LINES=
+		DEV_PARENTS_LINES=$(get-dev-parents "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ]
 		then
 			echo "$INDENT$DEV: Can't determine parents, will stop recursing here."
 			continue
