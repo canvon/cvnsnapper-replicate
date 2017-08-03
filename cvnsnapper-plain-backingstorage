@@ -1,0 +1,15 @@
+#!/bin/bash
+#
+# cvnsnapper-plain-backingstorage - btrfs backing storage
+# Copyright (C) 2017  Fabian Pietsch <fabian@canvon.de>
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+die "Not implemented, yet."
