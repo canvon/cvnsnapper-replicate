@@ -284,7 +284,15 @@ recurse-device-parents() {
 
 		[ "$NUM_DEV_TYPE" -gt 0 ] || die "Internal error: get-device-parents omitted the DEV_TYPE key for device path \"$DEV\""
 
-		[ "$VERBOSE" -ge 1 ] && echo "$INDENT* Found ${#DEV_PARENTS[*]} parent devices: ${DEV_PARENTS[*]}"
+		if [ "$VERBOSE" -ge 1 ]
+		then
+			if [ "${#DEV_PARENTS[*]}" -gt 0 ]
+			then
+				echo "$INDENT* Found ${#DEV_PARENTS[*]} parent devices: ${DEV_PARENTS[*]}"
+			else
+				echo "$INDENT* Leaf device (no further parents), consider this the final backing storage."
+			fi
+		fi
 
 		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${DEV_PARENTS[@]}"
 	done
