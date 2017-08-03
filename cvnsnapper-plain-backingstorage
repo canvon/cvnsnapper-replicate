@@ -140,11 +140,18 @@ recurse-dev-parents() {
 	local DEV
 	for DEV
 	do
+		[ "$VERBOSE" -ge 1 ] && echo "$INDENT$DEV:"
+
 		local DID_IT=0 DEV_PARENTS_LINES=
 		DEV_PARENTS_LINES=$(get-dev-parents "$DEV") && DID_IT=1
 		if [ "$DID_IT" -eq 0 ]
 		then
-			echo "$INDENT$DEV: Can't determine parents, will stop recursing here."
+			if [ "$VERBOSE" -ge 1 ]
+			then
+				echo "$INDENT* Can't determine parents, will stop recursing here."
+			else
+				echo "$INDENT$DEV: Can't determine parents, will stop recursing here."
+			fi
 			continue
 		fi
 
@@ -158,7 +165,12 @@ recurse-dev-parents() {
 				continue
 				;;
 			DEV_TYPE)
-				echo "$INDENT$DEV: $VALUE"
+				if [ "$VERBOSE" -ge 1 ]
+				then
+					echo "$INDENT* Type: $VALUE"
+				else
+					echo "$INDENT$DEV: $VALUE"
+				fi
 				;;
 			PARENT)
 				DEV_PARENTS=("${DEV_PARENTS[@]}" "$VALUE")
@@ -179,6 +191,8 @@ recurse-dev-parents() {
 }
 
 
+VERBOSE=0
+
 USAGE="cvnsnapper-plain-backingstorage show BTRFS_MOUNT_POINT"
 
 while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
@@ -190,6 +204,12 @@ do
 	--help|--usage|-\?)
 		echo "Usage: $USAGE"
 		exit 0
+		;;
+	-v)
+		: $[VERBOSE++]
+		;;
+	-q)
+		: $[VERBOSE--]
 		;;
 	*)
 		die "Invalid option \"$OPTION\""
