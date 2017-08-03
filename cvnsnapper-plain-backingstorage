@@ -149,6 +149,9 @@ recurse-dev-parents() {
 			if [ "$VERBOSE" -ge 1 ]
 			then
 				echo "$INDENT* Can't determine parents, will stop recursing here."
+			elif [ "$VERBOSE" -le -1 ]
+			then
+				echo "$INDENT$DEV (parents missing)"
 			else
 				echo "$INDENT$DEV: Can't determine parents, will stop recursing here."
 			fi
@@ -168,6 +171,9 @@ recurse-dev-parents() {
 				if [ "$VERBOSE" -ge 1 ]
 				then
 					echo "$INDENT* Type: $VALUE"
+				elif [ "$VERBOSE" -le -1 ]
+				then
+					echo "$INDENT$DEV"
 				else
 					echo "$INDENT$DEV: $VALUE"
 				fi
@@ -268,7 +274,7 @@ show)
 		esac
 	done <<<"$BTRFS_FI_SHOW"
 
-	echo "Found ${#BTRFS_DEVICES[*]} devices: ${BTRFS_DEVICES[*]}"
+	[ "$VERBOSE" -ge 0 ] && echo "Found ${#BTRFS_DEVICES[*]} devices: ${BTRFS_DEVICES[*]}"
 
 	recurse-dev-parents "" "${BTRFS_DEVICES[@]}"
 
