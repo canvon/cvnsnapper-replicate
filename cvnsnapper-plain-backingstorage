@@ -38,7 +38,54 @@ shift
 
 case "$MODE" in
 show)
-	die "Mode-of-operation \"$MODE\": Not implemented, yet."
+	[ "$#" -eq 1 ] || die "Mode-of-operation \"$MODE\" takes exactly one argument, the btrfs mount point to operate on"
+
+	BTRFS_MOUNT_POINT="$1"
+	shift
+
+	DID_IT=0
+	BTRFS_FI_SHOW=$(btrfs filesystem show "$BTRFS_MOUNT_POINT") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_FI_SHOW" ]
+	then
+		die "Getting basic filesystem information via \"btrfs\" command failed"
+	fi
+
+	BTRFS_DEVICES=()
+	while read TOKEN1 TOKEN2 REST
+	do
+		case "$TOKEN1" in
+		Label:|uuid:)
+			# Ignore, for now.
+			;;
+		Total)
+			# Ignore, for now.
+			;;
+		devid)
+			# Bingo!
+			DID_IT=0
+			BTRFS_CUR_DEV_PATH=$(sed -n -e 's#^.*path \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_PATH" ]
+			then
+				die "Couldn't extract device path from $TOKEN1 $TOKEN2"  # Usually: devid N
+			fi
+			BTRFS_DEVICES=("${BTRFS_DEVICES[@]}" "$BTRFS_CUR_DEV_PATH")
+			;;
+		"")
+			# Ignore empty line.
+			;;
+		Btrfs)
+			# Ignore version information, for now.
+			;;
+		*)
+			warn "Warning: Unrecognized line starting with token \"$TOKEN1\", ignoring"
+			;;
+		esac
+	done <<<"$BTRFS_FI_SHOW"
+
+	echo "Found ${#BTRFS_DEVICES[*]} devices: ${BTRFS_DEVICES[*]}"
+
+	# FIXME: Continue implementing.
+	exit
 	;;
 *)
 	die "Invalid mode-of-operation \"$MODE\""
