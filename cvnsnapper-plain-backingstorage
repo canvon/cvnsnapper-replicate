@@ -109,10 +109,15 @@ recurse-dev-parents() {
 			continue
 		fi
 
-		local DEV_PARENTS=()
+		local NUM_KEYS=0 DEV_PARENTS=()
 		while read KEY VALUE
 		do
 			case "$KEY" in
+			"")
+				# Try to ignore empty lines.
+				[ -z "$VALUE" ] || die "Internal error: get-dev-parents returned empty key with value \"$VALUE\""
+				continue
+				;;
 			DEV_TYPE)
 				echo "$INDENT$DEV: $VALUE"
 				;;
@@ -123,7 +128,10 @@ recurse-dev-parents() {
 				die "Internal error: get-dev-parents returned unrecognized key \"$KEY\" for device path \"$DEV\""
 				;;
 			esac
+			: $[NUM_KEYS++]
 		done <<<"$DEV_PARENTS_LINES"
+
+		[ "$NUM_KEYS" -gt 0 ] || die "Internal error: get-dev-parents gave no useable output for device path \"$DEV\""
 
 		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-dev-parents "$INDENT    " "${DEV_PARENTS[@]}"
 	done
