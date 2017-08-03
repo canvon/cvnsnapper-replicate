@@ -183,6 +183,22 @@ get-device-parents() {
 		echo DEV_TYPE "$OUT_DEV_TYPE"
 		return 0
 		;;
+	7,*,b)
+		# loop device
+		echo DEV_TYPE "loop device, index $DEV_MINOR (loop$DEV_MINOR)"
+
+		local DID_IT=0 LOOP_LINES=
+		LOOP_LINES=$(losetup --list --noheadings --output=back-file "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$LOOP_LINES" ]
+		then
+			warn "Error: get-device-parents couldn't determine loop backing-file of device path \"$DEV\""
+			return 1
+		fi
+
+		echo PARENT "$LOOP_LINES"
+
+		return 0
+		;;
 	9,*,b)
 		# md-raid (multiple-device RAID)
 		echo DEV_TYPE "md-raid (multiple-disks, major:minor $DEV_MAJOR:$DEV_MINOR)"
