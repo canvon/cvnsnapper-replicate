@@ -13,6 +13,68 @@ die() {
 }
 
 
+get-btrfs-parents() {
+	[ "$#" -eq 1 ] || die "Internal error: get-btrfs-parents needs exactly one argument, the mount point or device path"
+
+	local BTRFS="$1"
+	shift
+
+	local DID_IT=0 BTRFS_FI_SHOW=
+	BTRFS_FI_SHOW=$(btrfs filesystem show "$BTRFS") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_FI_SHOW" ]
+	then
+		warn "Error: get-btrfs-parents couldn't get basic filesystem information via \"btrfs\" command for \"$BTRFS\""
+		return 1
+	fi
+
+	local BTRFS_DEVICES=()
+	local TOKEN1 TOKEN2 REST
+	while read TOKEN1 TOKEN2 REST
+	do
+		case "$TOKEN1" in
+		Label:|uuid:)
+			# Ignore, for now.
+			;;
+		Total)
+			# Ignore, for now.
+			;;
+		devid)
+			# Bingo!
+			local DID_IT=0 BTRFS_CUR_DEV_PATH=
+			BTRFS_CUR_DEV_PATH=$(sed -n -e 's#^.*path \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_PATH" ]
+			then
+				warn "Error: get-btrfs-parents couldn't extract device path from $TOKEN1 $TOKEN2"  # Usually: devid N
+				return 1
+			fi
+			BTRFS_DEVICES=("${BTRFS_DEVICES[@]}" "$BTRFS_CUR_DEV_PATH")
+			;;
+		"")
+			# Ignore empty line.
+			;;
+		Btrfs)
+			# Ignore version information, for now.
+			;;
+		*)
+			warn "Warning: get-btrfs-parents got unrecognized line starting with token \"$TOKEN1\", ignoring"
+			;;
+		esac
+	done <<<"$BTRFS_FI_SHOW"
+
+	if [ "${#BTRFS_DEVICES[*]}" -lt 1 ]
+	then
+		warn "Error: get-btrfs-parents could not determine any parent devices for btrfs at \"$DEV\""
+		return 1
+	fi
+
+	for PARENT in "${BTRFS_DEVICES[@]}"
+	do
+		echo PARENT "$PARENT"
+	done
+
+	return 0
+}
+
 get-device-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-device-parents needs exactly one argument, the device path"
 	local DEV="$1"
@@ -39,6 +101,9 @@ get-device-parents() {
 		;;
 	"character special file")
 		DEV_TYPE=c
+		;;
+	"directory")
+		DEV_TYPE=d
 		;;
 	"regular file")
 		DEV_TYPE=f
@@ -74,6 +139,30 @@ get-device-parents() {
 		warn "Warning: get-device-parents got to a regular file, \"$DEV\", but won't recurse into file systems, yet"
 		echo DEV_TYPE "regular file"
 		return 0
+		;;
+	*,*,d)
+		local DID_IT=0 FS_TYPE=
+		FS_TYPE_LINES="$(df --output=fstype "$DEV")" && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
+		then
+			warn "Warning: get-device-parents can't determine filesystem type (df failed) for \"$DEV\""
+			return 1
+		fi
+		local FS_TYPE=
+		FS_TYPE="$(tail -n +2 <<<"$FS_TYPE_LINES")"
+
+		echo DEV_TYPE "directory of filesystem type \"$FS_TYPE\""
+
+		case "$FS_TYPE" in
+		btrfs)
+			get-btrfs-parents "$DEV"
+			return
+			;;
+		*)
+			# FIXME: Implement, but needs changes above which shall go in after next commit at the earliest.
+			die "Error: Recursing on a directory and/or mount point: Other filesystem types than btrfs not implemented, yet"
+			;;
+		esac
 		;;
 	8,*,b)
 		# SCSI (or, today, about any type of) disk -- search ends here.
@@ -195,6 +284,8 @@ recurse-device-parents() {
 
 		[ "$NUM_DEV_TYPE" -gt 0 ] || die "Internal error: get-device-parents omitted the DEV_TYPE key for device path \"$DEV\""
 
+		[ "$VERBOSE" -ge 1 ] && echo "$INDENT* Found ${#DEV_PARENTS[*]} parent devices: ${DEV_PARENTS[*]}"
+
 		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${DEV_PARENTS[@]}"
 	done
 
@@ -235,53 +326,12 @@ shift
 
 case "$MODE" in
 show)
-	[ "$#" -eq 1 ] || die "Mode-of-operation \"$MODE\" takes exactly one argument, the btrfs mount point to operate on"
+	[ "$#" -eq 1 ] || die "Mode-of-operation \"$MODE\" takes exactly one argument, the mount point or block device to operate on"
 
-	BTRFS_MOUNT_POINT="$1"
+	START_DEV="$1"
 	shift
 
-	DID_IT=0
-	BTRFS_FI_SHOW=$(btrfs filesystem show "$BTRFS_MOUNT_POINT") && DID_IT=1
-	if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_FI_SHOW" ]
-	then
-		die "Getting basic filesystem information via \"btrfs\" command failed"
-	fi
-
-	BTRFS_DEVICES=()
-	while read TOKEN1 TOKEN2 REST
-	do
-		case "$TOKEN1" in
-		Label:|uuid:)
-			# Ignore, for now.
-			;;
-		Total)
-			# Ignore, for now.
-			;;
-		devid)
-			# Bingo!
-			DID_IT=0
-			BTRFS_CUR_DEV_PATH=$(sed -n -e 's#^.*path \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
-			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_PATH" ]
-			then
-				die "Couldn't extract device path from $TOKEN1 $TOKEN2"  # Usually: devid N
-			fi
-			BTRFS_DEVICES=("${BTRFS_DEVICES[@]}" "$BTRFS_CUR_DEV_PATH")
-			;;
-		"")
-			# Ignore empty line.
-			;;
-		Btrfs)
-			# Ignore version information, for now.
-			;;
-		*)
-			warn "Warning: Unrecognized line starting with token \"$TOKEN1\", ignoring"
-			;;
-		esac
-	done <<<"$BTRFS_FI_SHOW"
-
-	[ "$VERBOSE" -ge 0 ] && echo "Found ${#BTRFS_DEVICES[*]} devices: ${BTRFS_DEVICES[*]}"
-
-	recurse-device-parents "" "${BTRFS_DEVICES[@]}"
+	recurse-device-parents "" "$START_DEV"
 
 	exit
 	;;
