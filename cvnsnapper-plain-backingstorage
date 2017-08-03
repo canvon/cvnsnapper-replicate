@@ -13,7 +13,7 @@ die() {
 }
 
 
-get-dev-parents() {
+get-device-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-device-parents needs exactly one argument, the device path"
 	local DEV="$1"
 	shift
@@ -135,7 +135,8 @@ get-dev-parents() {
 	return 0
 }
 
-recurse-dev-parents() {
+recurse-device-parents() {
+	[ "$#" -ge 1 ] || die "Internal error: recurse-device-parents needs at least one argument, the indentation"
 	local INDENT="$1"; shift
 	local DEV
 	for DEV
@@ -143,7 +144,7 @@ recurse-dev-parents() {
 		[ "$VERBOSE" -ge 1 ] && echo "$INDENT$DEV:"
 
 		local DID_IT=0 DEV_PARENTS_LINES=
-		DEV_PARENTS_LINES=$(get-dev-parents "$DEV") && DID_IT=1
+		DEV_PARENTS_LINES=$(get-device-parents "$DEV") && DID_IT=1
 		if [ "$DID_IT" -eq 0 ]
 		then
 			if [ "$VERBOSE" -ge 1 ]
@@ -164,7 +165,7 @@ recurse-dev-parents() {
 			case "$KEY" in
 			"")
 				# Try to ignore empty lines.
-				[ -z "$VALUE" ] || die "Internal error: get-dev-parents returned empty key with value \"$VALUE\""
+				[ -z "$VALUE" ] || die "Internal error: get-device-parents returned empty key with value \"$VALUE\""
 				continue
 				;;
 			DEV_TYPE)
@@ -182,15 +183,15 @@ recurse-dev-parents() {
 				DEV_PARENTS=("${DEV_PARENTS[@]}" "$VALUE")
 				;;
 			*)
-				die "Internal error: get-dev-parents returned unrecognized key \"$KEY\" for device path \"$DEV\""
+				die "Internal error: get-device-parents returned unrecognized key \"$KEY\" for device path \"$DEV\""
 				;;
 			esac
 			: $[NUM_KEYS++]
 		done <<<"$DEV_PARENTS_LINES"
 
-		[ "$NUM_KEYS" -gt 0 ] || die "Internal error: get-dev-parents gave no useable output for device path \"$DEV\""
+		[ "$NUM_KEYS" -gt 0 ] || die "Internal error: get-device-parents gave no useable output for device path \"$DEV\""
 
-		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-dev-parents "$INDENT    " "${DEV_PARENTS[@]}"
+		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${DEV_PARENTS[@]}"
 	done
 
 	return 0
@@ -276,7 +277,7 @@ show)
 
 	[ "$VERBOSE" -ge 0 ] && echo "Found ${#BTRFS_DEVICES[*]} devices: ${BTRFS_DEVICES[*]}"
 
-	recurse-dev-parents "" "${BTRFS_DEVICES[@]}"
+	recurse-device-parents "" "${BTRFS_DEVICES[@]}"
 
 	exit
 	;;
