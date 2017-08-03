@@ -142,16 +142,21 @@ get-device-parents() {
 		;;
 	*,*,d)
 		local DID_IT=0 FS_TYPE=
-		FS_TYPE_LINES="$(df --output=fstype "$DEV")" && DID_IT=1
+		FS_TYPE_LINES="$(df --output=fstype,source "$DEV")" && DID_IT=1
 		if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
 		then
 			warn "Warning: get-device-parents can't determine filesystem type (df failed) for \"$DEV\""
 			return 1
 		fi
-		local FS_TYPE=
-		FS_TYPE="$(tail -n +2 <<<"$FS_TYPE_LINES")"
+		local FS_TYPE= FS_SOURCE= DUMMY=
+		read FS_TYPE FS_SOURCE DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
+		if [ -z "$FS_TYPE" ]
+		then
+			warn "Warning: get-device-parents can't determine filesystem type (can't parse df output) for \"$DEV\""
+			return 1
+		fi
 
-		echo DEV_TYPE "directory of filesystem type \"$FS_TYPE\""
+		echo DEV_TYPE "directory of filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\""
 
 		case "$FS_TYPE" in
 		btrfs)
@@ -159,8 +164,14 @@ get-device-parents() {
 			return
 			;;
 		*)
-			# FIXME: Implement, but needs changes above which shall go in after next commit at the earliest.
-			die "Error: Recursing on a directory and/or mount point: Other filesystem types than btrfs not implemented, yet"
+			case "$FS_SOURCE" in
+			""|"-"|"none")
+				warn "Error: Recursing on a directory and/or mount point, but mount source seems to be unknown to df. Can't determine parent device!"
+				return 1
+				;;
+			esac
+
+			echo PARENT "$FS_SOURCE"
 			;;
 		esac
 		;;
