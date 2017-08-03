@@ -13,6 +13,123 @@ die() {
 }
 
 
+get-dev-parents() {
+	[ "$#" -eq 1 ] || die "Internal error: get-device-parents needs exactly one argument, the device path"
+	local DEV="$1"
+	shift
+
+	local DID_IT=0
+	local DEV_STAT_LINE=$(stat -L -c "0x%t 0x%T %F" "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_STAT_LINE" ]
+	then
+		warn "Warning: get-device-parents can't get stat information for device path \"$DEV\""
+		return 1
+	fi
+
+	if ! read DEV_MAJOR_HEX DEV_MINOR_HEX DEV_FILE_TYPE <<<"$DEV_STAT_LINE"
+	then
+		warn "Warning: get-device-parents can't interpret stat information \"$DEV_STAT_LINE\" for device path \"$DEV\""
+		return 1
+	fi
+
+	DEV_TYPE=
+	case "$DEV_FILE_TYPE" in
+	"block special file")
+		DEV_TYPE=b
+		;;
+	"character special file")
+		DEV_TYPE=c
+		;;
+	"regular file")
+		DEV_TYPE=f
+		;;
+	*)
+		warn "Warning: get-device-parents was given a non-device \"$DEV\" of file type \"$DEV_FILE_TYPE\""
+		return 1
+		;;
+	esac
+
+	[ -n "$DEV_TYPE" ] || die "Internal error: get-device-parents couldn't determine device type for device path \"$DEV\""
+
+	case "$[DEV_MAJOR_HEX],$[DEV_MINOR_HEX],$DEV_TYPE" in
+	*,*,f)
+		# Regular file -- search ends here.
+		# TODO: Continue with the containing file system ...
+		warn "Warning: get-device-parents got to a regular file, \"$DEV\", but won't recurse into file systems, yet"
+		echo DEV_TYPE "regular file"
+		return 0
+		;;
+	8,*,b)
+		# SCSI (or, today, about any type of) disk -- search ends here.
+		local OUT_DEV_TYPE="SCSI-alike disk"
+		local DISK_INDEX="$[DEV_MINOR_HEX / 16]" PART_NR="$[DEV_MINOR_HEX % 16]"
+		local DISK_ALPHA="$(perl -le "print(chr(ord('a') + $DISK_INDEX))")"
+		if [ "$PART_NR" -eq 0 ]
+		then
+			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk sd$DISK_ALPHA)"
+		else
+			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR (sd$DISK_ALPHA$PART_NR)"
+		fi
+		echo DEV_TYPE "$OUT_DEV_TYPE"
+		return 0
+		;;
+	254,*,b)
+		# device mapper (DM)
+		# FIXME: Implement.
+		warn "Warning: get-device-parents got to a device mapper device node, \"$DEV\", but does not recurse into it, yet."
+		echo DEV_TYPE "device mapper (DM, major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+		return 0
+		;;
+	*,*,b)
+		# Fallback -- search ends here, for now. User has to see
+		# for himself whether this device type has any backing storage
+		# of its own.
+		echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+		return 0
+		;;
+	*)
+		warn "Warning: get-device-parents does not know how to determine backing storage of device path \"$DEV\" (dev type \"$DEV_TYPE\", major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+		return 1
+		;;
+	esac
+
+	return 0
+}
+
+recurse-dev-parents() {
+	local INDENT="$1"; shift
+	local DEV
+	for DEV
+	do
+		if ! local DEV_PARENTS_LINES=$(get-dev-parents "$DEV")
+		then
+			echo "$INDENT$DEV: Can't determine parents, will stop recursing here."
+			continue
+		fi
+
+		local DEV_PARENTS=()
+		while read KEY VALUE
+		do
+			case "$KEY" in
+			DEV_TYPE)
+				echo "$INDENT$DEV: $VALUE"
+				;;
+			PARENT)
+				DEV_PARENTS=("${DEV_PARENTS[@]}" "$VALUE")
+				;;
+			*)
+				die "Internal error: get-dev-parents returned unrecognized key \"$KEY\" for device path \"$DEV\""
+				;;
+			esac
+		done <<<"$DEV_PARENTS_LINES"
+
+		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-dev-parents "$INDENT    " "${DEV_PARENTS[@]}"
+	done
+
+	return 0
+}
+
+
 USAGE="cvnsnapper-plain-backingstorage show BTRFS_MOUNT_POINT"
 
 while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
@@ -84,7 +201,8 @@ show)
 
 	echo "Found ${#BTRFS_DEVICES[*]} devices: ${BTRFS_DEVICES[*]}"
 
-	# FIXME: Continue implementing.
+	recurse-dev-parents "" "${BTRFS_DEVICES[@]}"
+
 	exit
 	;;
 *)
