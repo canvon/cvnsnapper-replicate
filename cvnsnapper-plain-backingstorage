@@ -183,6 +183,32 @@ get-device-parents() {
 		echo DEV_TYPE "$OUT_DEV_TYPE"
 		return 0
 		;;
+	9,*,b)
+		# md-raid (multiple-device RAID)
+		echo DEV_TYPE "md-raid (multiple-disks, major:minor $DEV_MAJOR:$DEV_MINOR)"
+
+		local DID_IT=0 MD_LINES=
+		MD_LINES=$(mdadm --query --detail --export "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$MD_LINES" ]
+		then
+			warn "Error: get-device-parents couldn't determine md-raid details of device path \"$DEV\""
+			return 1
+		fi
+
+		while IFS="=" read KEY VALUE
+		do
+			case "$KEY" in
+			MD_DEVICE_*_DEV)
+				echo PARENT "$VALUE"
+				;;
+			*)
+				# Ignore, for now.
+				;;
+			esac
+		done <<<"$MD_LINES"
+
+		return 0
+		;;
 	254,*,b)
 		# device-mapper (DM)
 		echo DEV_TYPE "device-mapper (DM, major:minor $DEV_MAJOR:$DEV_MINOR)"
