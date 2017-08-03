@@ -75,9 +75,32 @@ get-dev-parents() {
 		;;
 	254,*,b)
 		# device mapper (DM)
-		# FIXME: Implement.
-		warn "Warning: get-device-parents got to a device mapper device node, \"$DEV\", but does not recurse into it, yet."
 		echo DEV_TYPE "device mapper (DM, major:minor $DEV_MAJOR_HEX:$DEV_MINOR_HEX)"
+
+		local FAILED=0 DEV_PARENTS_LINE= DEV_PARENTS=
+		DEV_PARENTS_LINE=$(dmsetup deps -o devname "$DEV") || FAILED=1
+		DEV_PARENTS=$(sed -n -e 's#^[0-9]\+ dependencies\t:##; s#^ \+(\([^)]*\))#\1\n#mgp' <<<"$DEV_PARENTS_LINE") || FAILED=1
+		if [ "$FAILED" -ne 0 ]
+		then
+			warn "Error: get-device-parents couldn't determine device-mapper dependencies of device path \"$DEV\""
+			return 1
+		fi
+
+		local PARENT
+		for PARENT in $DEV_PARENTS
+		do
+			if [ -e /dev/mapper/"$PARENT" ]
+			then
+				echo PARENT /dev/mapper/"$PARENT"
+			elif [ -e /dev/"$PARENT" ]
+			then
+				echo PARENT /dev/"$PARENT"
+			else
+				# This will result in error later, but don't just omit a parent.
+				echo PARENT "$PARENT"
+			fi
+		done
+
 		return 0
 		;;
 	*,*,b)
