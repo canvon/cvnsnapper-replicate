@@ -134,6 +134,7 @@ get-device-parents() {
 
 	case "$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE" in
 	*,*,[fd])
+		# File or directory; use df to get at parent device!
 		local DID_IT=0 FS_TYPE=
 		FS_TYPE_LINES="$(df --output=fstype,source "$DEV")" && DID_IT=1
 		if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
