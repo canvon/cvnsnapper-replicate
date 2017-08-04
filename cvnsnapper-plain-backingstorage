@@ -476,6 +476,7 @@ get-device-parents() {
 			return 1
 		fi
 
+		local KEY VALUE
 		while IFS="=" read KEY VALUE
 		do
 			case "$KEY" in
