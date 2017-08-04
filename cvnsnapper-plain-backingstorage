@@ -342,7 +342,10 @@ get-device-parents() {
 			return 1
 		fi
 
-		echo DEV_TYPE "$DEV_FILE_TYPE on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
+		local DEV_TYPE_INFO="$DEV_FILE_TYPE"
+		[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
+		echo DEV_TYPE "$DEV_TYPE_INFO"
+
 		if [ "$DEV_TYPE" = "f" ]
 		then
 			local FILE_SIZE
@@ -390,10 +393,10 @@ get-device-parents() {
 		if [ "$PART_NR" -eq 0 ]
 		then
 			DISK_SUB_MNEMONIC="$DISK_MNEMONIC"
-			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk $DISK_SUB_MNEMONIC)"
+			[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk $DISK_SUB_MNEMONIC)"
 		else
 			DISK_SUB_MNEMONIC="$DISK_MNEMONIC$PART_NR"
-			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR ($DISK_SUB_MNEMONIC)"
+			[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR ($DISK_SUB_MNEMONIC)"
 		fi
 		echo DEV_TYPE "$OUT_DEV_TYPE"
 
@@ -432,7 +435,9 @@ get-device-parents() {
 		;;
 	7,*,b)
 		# loop device
-		echo DEV_TYPE "loop device, index $DEV_MINOR (loop$DEV_MINOR)"
+		local DEV_TYPE_INFO="loop device"
+		[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO, index $DEV_MINOR (loop$DEV_MINOR)"
+		echo DEV_TYPE "$DEV_TYPE_INFO"
 
 		local DID_IT=0 SIZE=
 		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
@@ -457,7 +462,9 @@ get-device-parents() {
 		;;
 	9,*,b)
 		# md-raid (multiple-device RAID)
-		echo DEV_TYPE "md-raid (multiple-disks, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		local DEV_TYPE_INFO="md-raid"
+		[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		echo DEV_TYPE "$DEV_TYPE_INFO"
 
 		local DID_IT=0 SIZE=
 		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
@@ -503,7 +510,7 @@ get-device-parents() {
 				fi
 				local MD_LAST_SIZE=
 				MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
-				[ -n "$MD_LAST_SIZE" ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
+				[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
 
 				echo PARENT "$VALUE"
 				;;
@@ -519,7 +526,14 @@ get-device-parents() {
 		# device-mapper (DM)
 		local DM_NAME=
 		DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
-		echo DEV_TYPE "device-mapper (DM${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		local DEV_TYPE_INFO="device-mapper"
+		if [ "$VERBOSE" -ge 1 ]
+		then
+			DEV_TYPE_INFO="$DEV_TYPE_INFO (DM${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		else
+			DEV_TYPE_INFO="$DEV_TYPE_INFO${DM_NAME:+, name $DM_NAME}"
+		fi
+		echo DEV_TYPE "$DEV_TYPE_INFO"
 
 		local DID_IT=0 SIZE=
 		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
@@ -530,9 +544,9 @@ get-device-parents() {
 			echo SIZE block_device "$SIZE"
 		fi
 
-		local DID_IT=0 DEV_TARGETS_LINES=
-		#DEV_TARGETS_LINES=$(dmsetup status "$DEV") && DID_IT=1
-		DEV_TARGETS_LINES=$(dmsetup table "$DEV") && DID_IT=1
+		local DID_IT=0 DEV_TARGETS_SUBCMD="status" DEV_TARGETS_LINES=
+		[ "$VERBOSE" -ge 1 ] && DEV_TARGETS_SUBCMD="table"
+		DEV_TARGETS_LINES=$(dmsetup "$DEV_TARGETS_SUBCMD" "$DEV") && DID_IT=1
 		if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
 		then
 			warn "Warning: get-device-parents couldn't get list of targets for device \"$DEV\", ignoring"
@@ -628,13 +642,13 @@ recurse-device-parents() {
 	local DEV
 	for DEV
 	do
-		[ "$VERBOSE" -ge 1 ] && echo "$INDENT$DEV:"
+		[ "$VERBOSE" -ge 2 ] && echo "$INDENT$DEV:"
 
 		local DID_IT=0 DEV_PARENTS_LINES=
 		DEV_PARENTS_LINES=$(get-device-parents "$DEV") && DID_IT=1
 		if [ "$DID_IT" -eq 0 ]
 		then
-			if [ "$VERBOSE" -ge 1 ]
+			if [ "$VERBOSE" -ge 2 ]
 			then
 				echo "$INDENT* Can't determine parents, will stop recursing here."
 			elif [ "$VERBOSE" -le -1 ]
@@ -658,7 +672,7 @@ recurse-device-parents() {
 			DEV_TYPE)
 				: $[NUM_DEV_TYPE++]
 
-				if [ "$VERBOSE" -ge 1 ]
+				if [ "$VERBOSE" -ge 2 ]
 				then
 					echo "$INDENT* Type: $VALUE"
 				elif [ "$VERBOSE" -le -1 ]
@@ -685,10 +699,10 @@ recurse-device-parents() {
 					else
 						SIZE_REF_VALUE="$SIZE_REF"
 					fi
-					SIZE_PERCENT=$(perl -le "printf('%6.2f%%', 100.0 * $SIZE_VALUE / $SIZE_REF_VALUE)")
+					[ "$VERBOSE" -ge 1 ] && SIZE_PERCENT=$(perl -le "printf('%6.2f%%', 100.0 * $SIZE_VALUE / $SIZE_REF_VALUE)")
 				fi
 
-				if [ "$VERBOSE" -ge 1 ]
+				if [ "$VERBOSE" -ge 2 ]
 				then
 					echo "$INDENT* Size of $SIZE_TYPE: $SIZE_VALUE B ($(size-to-some-unit --both "$SIZE_VALUE")${SIZE_PERCENT:+, $SIZE_PERCENT${SIZE_REF_NAME:+ of $SIZE_REF_NAME}})"
 				elif [ "$VERBOSE" -le -1 ]
@@ -709,7 +723,7 @@ recurse-device-parents() {
 
 		[ "$NUM_DEV_TYPE" -gt 0 ] || die "Internal error: get-device-parents omitted the DEV_TYPE key for device path \"$DEV\""
 
-		if [ "$VERBOSE" -ge 1 ]
+		if [ "$VERBOSE" -ge 2 ]
 		then
 			if [ "${#DEV_PARENTS[*]}" -gt 0 ]
 			then
