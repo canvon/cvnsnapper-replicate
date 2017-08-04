@@ -503,6 +503,20 @@ get-device-parents() {
 			echo SIZE block_device "$SIZE"
 		fi
 
+		local DID_IT=0 DEV_TARGETS_LINES=
+		DEV_TARGETS_LINES=$(dmsetup status "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
+		then
+			warn "Warning: get-device-parents couldn't get list of targets for device \"$DEV\", ignoring"
+		else
+			local START LEN_512 TARGET DUMMY
+			while read START LEN_512 TARGET DUMMY
+			do
+				[ -z "$START" ] && continue
+				echo SIZE target_"$TARGET" "$[LEN_512 * 512]" ${SIZE:+block_device=$SIZE}
+			done <<<"$DEV_TARGETS_LINES"
+		fi
+
 		local FAILED=0 DEV_PARENTS_LINE= DEV_PARENTS=
 		DEV_PARENTS_LINE=$(dmsetup deps -o devname "$DEV") || FAILED=1
 		DEV_PARENTS=$(sed -n -e 's#^[0-9]\+ dependencies\t:##; s#^ \+(\([^)]*\))#\1\n#mgp' <<<"$DEV_PARENTS_LINE") || FAILED=1
