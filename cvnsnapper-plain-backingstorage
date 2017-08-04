@@ -531,7 +531,8 @@ get-device-parents() {
 		fi
 
 		local DID_IT=0 DEV_TARGETS_LINES=
-		DEV_TARGETS_LINES=$(dmsetup status "$DEV") && DID_IT=1
+		#DEV_TARGETS_LINES=$(dmsetup status "$DEV") && DID_IT=1
+		DEV_TARGETS_LINES=$(dmsetup table "$DEV") && DID_IT=1
 		if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
 		then
 			warn "Warning: get-device-parents couldn't get list of targets for device \"$DEV\", ignoring"
@@ -540,7 +541,32 @@ get-device-parents() {
 			while read START LEN_512 TARGET DUMMY
 			do
 				[ -z "$START" ] && continue
-				echo SIZE target_"$TARGET" "$[LEN_512 * 512]" ${SIZE:+block_device=$SIZE}
+				local DM_INFO="target=$TARGET"
+				case "$TARGET" in
+				linear)
+					local LINEAR_DEV LINEAR_OFFSET DUMMY2
+					read LINEAR_DEV LINEAR_OFFSET DUMMY2 <<<"$DUMMY"
+					if [ -n "$LINEAR_DEV" ]
+					then
+						DM_INFO="$DM_INFO,dev=$LINEAR_DEV"
+						[ -n "$LINEAR_OFFSET" ] && DM_INFO="$DM_INFO,offset=$LINEAR_OFFSET"
+					fi
+					;;
+				crypt)
+					local CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2
+					read CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2 <<<"$DUMMY"
+					[ -n "$CRYPT_CIPHER" ] && DM_INFO="$DM_INFO,cipher=$CRYPT_CIPHER"
+					if [ -n "$CRYPT_DEV" ]
+					then
+						DM_INFO="$DM_INFO,dev=$CRYPT_DEV"
+						[ -n "$CRYPT_OFFSET" ] && DM_INFO="$DM_INFO,offset=$CRYPT_OFFSET"
+					fi
+					;;
+				*)
+					DM_INFO="$DM_INFO,target_is_unknown"
+					;;
+				esac
+				echo SIZE "$DM_INFO" "$[LEN_512 * 512]" ${SIZE:+block_device=$SIZE}
 			done <<<"$DEV_TARGETS_LINES"
 		fi
 
