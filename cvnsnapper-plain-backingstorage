@@ -517,7 +517,9 @@ get-device-parents() {
 		;;
 	254,*,b)
 		# device-mapper (DM)
-		echo DEV_TYPE "device-mapper (DM, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		local DM_NAME=
+		DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
+		echo DEV_TYPE "device-mapper (DM${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
 
 		local DID_IT=0 SIZE=
 		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
