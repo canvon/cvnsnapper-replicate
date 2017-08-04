@@ -143,6 +143,35 @@ unit-to-size() {
 	' <<<"$UNIT"
 }
 
+get-zfs-parents() {
+	[ "$#" -eq 1 ] || die "Internal error: get-zfs-parents needs exactly one argument, the mount point or device path"
+
+	local ZFS="$1"
+	shift
+
+	local ZPOOL=$(df "$ZFS" | tail -1 | cut -f1 -d" " | sed 's/\/.*//;s/@.*//;')
+
+	local DID_IT=0 ZPOOL_STATUS=
+	ZPOOL_STATUS=$(zpool status -PL "$ZPOOL") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$ZPOOL_STATUS" ]
+	then
+		warn "Error: get-zfs-parents couldn't get pool status via \"zpool\" command for pool \"$ZPOOL\" that contains \"$ZFS\""
+		return 1
+	fi
+
+	local POOL_DEVICES=$(echo "$ZPOOL_STATUS" | sed -n 's/\s\+/\t/g;s/^\s\+//;/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/,$p' | cut -f1 | grep ^/ | sed 's/^/PARENT /')
+
+	if [ -z "$POOL_DEVICES" ]
+	then
+		warn "Error: get-zfs-parents could not determine any parent devices for pool \"$ZPOOL\" that contains \"$ZFS\""
+		return 1
+	fi
+
+	echo "$POOL_DEVICES"
+
+	return 0
+}
+
 get-btrfs-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-btrfs-parents needs exactly one argument, the mount point or device path"
 
@@ -370,6 +399,17 @@ get-device-parents() {
 			esac
 
 			get-btrfs-parents "$FS_TARGET"
+			return
+			;;
+		zfs)
+			case "$FS_TARGET" in
+			""|"-"|"none")
+				warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for \"btrfs filesystem show\" call"
+				return 1
+				;;
+			esac
+
+			get-zfs-parents "$FS_TARGET"
 			return
 			;;
 		*)
