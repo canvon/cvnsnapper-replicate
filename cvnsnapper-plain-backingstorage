@@ -345,11 +345,30 @@ get-device-parents() {
 			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR (sd$DISK_ALPHA$PART_NR)"
 		fi
 		echo DEV_TYPE "$OUT_DEV_TYPE"
+
+		local DID_IT=0 SIZE=
+		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+		then
+			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+		else
+			echo SIZE block_device "$SIZE"
+		fi
+
 		return 0
 		;;
 	7,*,b)
 		# loop device
 		echo DEV_TYPE "loop device, index $DEV_MINOR (loop$DEV_MINOR)"
+
+		local DID_IT=0 SIZE=
+		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+		then
+			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+		else
+			echo SIZE block_device "$SIZE"
+		fi
 
 		local DID_IT=0 LOOP_LINES=
 		LOOP_LINES=$(losetup --list --noheadings --output=back-file "$DEV") && DID_IT=1
@@ -366,6 +385,15 @@ get-device-parents() {
 	9,*,b)
 		# md-raid (multiple-device RAID)
 		echo DEV_TYPE "md-raid (multiple-disks, major:minor $DEV_MAJOR:$DEV_MINOR)"
+
+		local DID_IT=0 SIZE=
+		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+		then
+			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+		else
+			echo SIZE block_device "$SIZE"
+		fi
 
 		local DID_IT=0 MD_LINES=
 		MD_LINES=$(mdadm --query --detail --export "$DEV") && DID_IT=1
@@ -392,6 +420,15 @@ get-device-parents() {
 	254,*,b)
 		# device-mapper (DM)
 		echo DEV_TYPE "device-mapper (DM, major:minor $DEV_MAJOR:$DEV_MINOR)"
+
+		local DID_IT=0 SIZE=
+		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+		then
+			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+		else
+			echo SIZE block_device "$SIZE"
+		fi
 
 		local FAILED=0 DEV_PARENTS_LINE= DEV_PARENTS=
 		DEV_PARENTS_LINE=$(dmsetup deps -o devname "$DEV") || FAILED=1
@@ -424,6 +461,16 @@ get-device-parents() {
 		# for himself whether this device type has any backing storage
 		# of its own.
 		echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
+
+		local DID_IT=0 SIZE=
+		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+		then
+			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+		else
+			echo SIZE block_device "$SIZE"
+		fi
+
 		return 0
 		;;
 	*)
