@@ -571,7 +571,7 @@ get-device-parents() {
 
 		return 0
 		;;
-	254,*,b)
+	25[34],*,b)
 		# device-mapper (DM)
 		local DM_NAME=
 		DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
