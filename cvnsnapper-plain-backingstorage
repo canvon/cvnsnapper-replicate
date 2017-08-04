@@ -424,7 +424,7 @@ get-device-parents() {
 			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
 			SIZE=
 		else
-			echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_size=$HOLDING_SIZE}
+			echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_device=$HOLDING_SIZE}
 		fi
 		[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "$HOLDING_SIZE"
 
