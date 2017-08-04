@@ -399,21 +399,44 @@ get-device-parents() {
 		local OUT_DEV_TYPE="SCSI-alike disk"
 		local DISK_INDEX="$[DEV_MINOR / 16]" PART_NR="$[DEV_MINOR % 16]"
 		local DISK_ALPHA="$(perl -le "print(chr(ord('a') + $DISK_INDEX))")"
+		local DISK_MNEMONIC="sd$DISK_ALPHA" DISK_SUB_MNEMONIC=
 		if [ "$PART_NR" -eq 0 ]
 		then
-			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk sd$DISK_ALPHA)"
+			DISK_SUB_MNEMONIC="$DISK_MNEMONIC"
+			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk $DISK_SUB_MNEMONIC)"
 		else
-			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR (sd$DISK_ALPHA$PART_NR)"
+			DISK_SUB_MNEMONIC="$DISK_MNEMONIC$PART_NR"
+			OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR ($DISK_SUB_MNEMONIC)"
 		fi
 		echo DEV_TYPE "$OUT_DEV_TYPE"
 
-		local DID_IT=0 SIZE=
+		local DID_IT= SIZE=
+		DID_IT=0
 		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
 		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
 		then
 			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
 		else
 			echo SIZE block_device "$SIZE"
+		fi
+		# Additionally, determine size of "holding" device;
+		# that is, of which full hard disk this is a partition.
+		if [ "$DISK_SUB_MNEMONIC" != "$DISK_MNEMONIC" ]
+		then
+			local DISK_MNEMONIC_PATH="/dev/$DISK_MNEMONIC"
+			if ! [ -b "$DISK_MNEMONIC_PATH" ]
+			then
+				warn "Warning: get-device-parents can't determine size of holding device as \"$DISK_MNEMONIC_PATH\" does not exist or is not a block special device"
+			else
+				DID_IT=0
+				SIZE=$(blockdev --getsize64 "$DISK_MNEMONIC_PATH") && DID_IT=1
+				if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+				then
+					[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of holding device \"$DISK_MNEMONIC_PATH\" in bytes (command blockdev failed)"
+				else
+					echo SIZE holding_device "$SIZE"
+				fi
+			fi
 		fi
 
 		return 0
