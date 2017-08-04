@@ -462,8 +462,25 @@ get-device-parents() {
 		;;
 	9,*,b)
 		# md-raid (multiple-device RAID)
+
+		local DID_IT=0 MD_LINES=
+		MD_LINES=$(mdadm --query --detail --export "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$MD_LINES" ]
+		then
+			warn "Error: get-device-parents couldn't determine md-raid details of device path \"$DEV\""
+			return 1
+		fi
+
+		local MD_NAME=
+		MD_NAME=$(grep '^MD_NAME=' <<<"$MD_LINES" | sed -n -e 's#^MD_NAME=##p') || MD_NAME=
+
 		local DEV_TYPE_INFO="md-raid"
-		[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		if [ "$VERBOSE" -ge 1 ]
+		then
+			DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks${MD_NAME:+, name $MD_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		else
+			DEV_TYPE_INFO="$DEV_TYPE_INFO${MD_NAME:+, name $MD_NAME}"
+		fi
 		echo DEV_TYPE "$DEV_TYPE_INFO"
 
 		local DID_IT=0 SIZE=
@@ -473,14 +490,6 @@ get-device-parents() {
 			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
 		else
 			echo SIZE block_device "$SIZE"
-		fi
-
-		local DID_IT=0 MD_LINES=
-		MD_LINES=$(mdadm --query --detail --export "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$MD_LINES" ]
-		then
-			warn "Error: get-device-parents couldn't determine md-raid details of device path \"$DEV\""
-			return 1
 		fi
 
 		local MD_LEVEL= MD_LAST_ROLE= MD_LAST_DEV= MD_AVAIL_DEV_SIZE_SEEN=0
