@@ -476,7 +476,7 @@ get-device-parents() {
 			return 1
 		fi
 
-		local MD_LEVEL= MD_LAST_ROLE= MD_LAST_DEV=
+		local MD_LEVEL= MD_LAST_ROLE= MD_LAST_DEV= MD_AVAIL_DEV_SIZE_SEEN=0
 		local KEY VALUE
 		while IFS="=" read KEY VALUE
 		do
@@ -490,6 +490,17 @@ get-device-parents() {
 			MD_DEVICE_*_DEV)
 				MD_LAST_DEV="$VALUE"
 
+				if [ "$MD_AVAIL_DEV_SIZE_SEEN" -eq 0 ]
+				then
+					local MD_LAST_SIZE_MDADM=
+					MD_LAST_SIZE_MDADM=$(mdadm --query --examine "$MD_LAST_DEV" | sed -n -e 's#^ *Avail \+Dev \+Size \+: \+\([0-9]\+\) .*$#\1#p') || MD_LAST_SIZE_MDADM=
+					if [ -n "$MD_LAST_SIZE_MDADM" ]
+					then
+						local MD_LAST_SIZE="$[MD_LAST_SIZE_MDADM * 1024]"
+						echo SIZE "level=$MD_LEVEL,avail_devices_size" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
+						MD_AVAIL_DEV_SIZE_SEEN=1
+					fi
+				fi
 				local MD_LAST_SIZE=
 				MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
 				[ -n "$MD_LAST_SIZE" ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
