@@ -54,7 +54,7 @@ size-to-unit() {
 }
 
 size-to-some-unit() {
-	local SI=0
+	local SI=0 BOTH=0
 	while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
 	do
 		local OPTION="$1"
@@ -63,9 +63,14 @@ size-to-some-unit() {
 		case "$OPTION" in
 		--si)
 			SI=1
+			BOTH=0
 			;;
 		--iec)
 			SI=0
+			BOTH=0
+			;;
+		--both)
+			BOTH=1
 			;;
 		*)
 			die "Internal error: size-to-some-unit got invalid option \"$OPTION\""
@@ -81,7 +86,7 @@ size-to-some-unit() {
 	local SI_UNITS="TB GB MB KB B"
 	local IEC_UNITS="TiB GiB MiB KiB B"
 	local OUR_UNITS=
-	if [ "$SI" -eq 1 ]
+	if [ "$SI" -eq 1 ] && [ "$BOTH" -eq 0 ]
 	then
 		OUR_UNITS="$SI_UNITS"
 	else
@@ -103,7 +108,20 @@ size-to-some-unit() {
 		read UNIT_SIZE DUMMY <<<"$UNIT_SIZE_STR"
 		[ "$UNIT_SIZE" -gt 0 ] || continue
 
-		echo "$UNIT_SIZE_STR"
+		if [ "$UNIT" = "B" ]
+		then
+			echo "$UNIT_SIZE_STR"
+		else
+			if [ "$BOTH" -eq 0 ]
+			then
+				echo "$UNIT_SIZE_STR"
+			else
+				# Try to be sure to have same order of magnitude for both values.
+				# (Otherwise, there could be "1 TB, 1000 GiB"
+				# which should rather read "1073 GB, 1000 GiB".)
+				echo "$(size-to-unit "$SIZE" "${UNIT:0:1}B"), $UNIT_SIZE_STR"
+			fi
+		fi
 		return 0
 	done
 
@@ -472,7 +490,7 @@ recurse-device-parents() {
 
 				if [ "$VERBOSE" -ge 1 ]
 				then
-					echo "$INDENT* Size of $SIZE_TYPE: $SIZE_VALUE B ($(size-to-some-unit --si "$SIZE_VALUE"), $(size-to-some-unit --iec "$SIZE_VALUE"))"
+					echo "$INDENT* Size of $SIZE_TYPE: $SIZE_VALUE B ($(size-to-some-unit --both "$SIZE_VALUE"))"
 				elif [ "$VERBOSE" -le -1 ]
 				then
 					: # Nothing.
