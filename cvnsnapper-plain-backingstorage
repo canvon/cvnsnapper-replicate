@@ -205,7 +205,7 @@ get-btrfs-parents() {
 				warn "Error: get-btrfs-parents couldn't extract device size from $TOKEN1 $TOKEN2"  # Usually: devid N
 				return 1
 			fi
-			echo SIZE "devid=$BTRFS_CUR_DEV_ID,path=$BTRFS_CUR_DEV_PATH" "$(unit-to-size "$BTRFS_CUR_DEV_SIZE")" $FS_SIZE
+			echo SIZE "devid=$BTRFS_CUR_DEV_ID,path=$BTRFS_CUR_DEV_PATH" "$(unit-to-size "$BTRFS_CUR_DEV_SIZE")" ${FS_SIZE:+file-system=$FS_SIZE}
 			;;
 		"")
 			# Ignore empty line.
@@ -424,7 +424,7 @@ get-device-parents() {
 			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
 			SIZE=
 		else
-			echo SIZE block_device "$SIZE" $HOLDING_SIZE
+			echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_size=$HOLDING_SIZE}
 		fi
 		[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "$HOLDING_SIZE"
 
@@ -608,17 +608,27 @@ recurse-device-parents() {
 				local SIZE_TYPE SIZE_VALUE SIZE_REF DUMMY
 				read SIZE_TYPE SIZE_VALUE SIZE_REF DUMMY <<<"$VALUE"
 
-				local SIZE_PERCENT=
-				[ -n "$SIZE_REF" ] && SIZE_PERCENT=$(perl -le "printf('%6.2f%%', 100.0 * $SIZE_VALUE / $SIZE_REF)")
+				local SIZE_REF_NAME= SIZE_REF_VALUE= SIZE_PERCENT=
+				if [ -n "$SIZE_REF" ]
+				then
+					if grep -q '=' <<<"$SIZE_REF"
+					then
+						SIZE_REF_NAME="${SIZE_REF%%=*}"
+						SIZE_REF_VALUE="${SIZE_REF#*=}"
+					else
+						SIZE_REF_VALUE="$SIZE_REF"
+					fi
+					SIZE_PERCENT=$(perl -le "printf('%6.2f%%', 100.0 * $SIZE_VALUE / $SIZE_REF_VALUE)")
+				fi
 
 				if [ "$VERBOSE" -ge 1 ]
 				then
-					echo "$INDENT* Size of $SIZE_TYPE: $SIZE_VALUE B ($(size-to-some-unit --both "$SIZE_VALUE")${SIZE_PERCENT:+, $SIZE_PERCENT})"
+					echo "$INDENT* Size of $SIZE_TYPE: $SIZE_VALUE B ($(size-to-some-unit --both "$SIZE_VALUE")${SIZE_PERCENT:+, $SIZE_PERCENT${SIZE_REF_NAME:+ of $SIZE_REF_NAME}})"
 				elif [ "$VERBOSE" -le -1 ]
 				then
 					: # Nothing.
 				else
-					echo "$INDENT  $SIZE_TYPE: $(size-to-some-unit --iec "$SIZE_VALUE")${SIZE_PERCENT:+ ($SIZE_PERCENT)}"
+					echo "$INDENT  $SIZE_TYPE: $(size-to-some-unit --iec "$SIZE_VALUE")${SIZE_PERCENT:+ ($SIZE_PERCENT${SIZE_REF_NAME:+ of $SIZE_REF_NAME})}"
 				fi
 				;;
 			*)
