@@ -13,6 +13,104 @@ die() {
 }
 
 
+size-to-unit() {
+	[ "$#" -eq 2 ] || die "Internal error: size-to-unit needs exactly two arguments, the size and the unit"
+	local SIZE="$1"; shift
+	local UNIT="$1"; shift
+	case "$UNIT" in
+	TiB)
+		echo "$[SIZE / 1024**4] TiB"
+		;;
+	TB)
+		echo "$[SIZE / 1000**4] TB"
+		;;
+	GiB)
+		echo "$[SIZE / 1024**3] GiB"
+		;;
+	GB)
+		echo "$[SIZE / 1000**3] GB"
+		;;
+	MiB)
+		echo "$[SIZE / 1024**2] MiB"
+		;;
+	MB)
+		echo "$[SIZE / 1000**2] MB"
+		;;
+	KiB)
+		echo "$[SIZE / 1024**1] KiB"
+		;;
+	KB)
+		echo "$[SIZE / 1000**1] KB"
+		;;
+	B)
+		echo "$[SIZE] B"
+		;;
+	*)
+		warn "Internal error: size-to-unit got request for unrecognized unit \"$UNIT\""
+		return 1
+		;;
+	esac
+	return 0
+}
+
+size-to-some-unit() {
+	local SI=0
+	while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
+	do
+		local OPTION="$1"
+		shift
+
+		case "$OPTION" in
+		--si)
+			SI=1
+			;;
+		--iec)
+			SI=0
+			;;
+		*)
+			die "Internal error: size-to-some-unit got invalid option \"$OPTION\""
+			;;
+		esac
+	done
+
+	[ "$#" -eq 1 ] || die "Internal error: size-to-some-unit takes exactly one non-option argument, the size to convert"
+
+	local SIZE="$1"
+	shift
+
+	local SI_UNITS="TB GB MB KB B"
+	local IEC_UNITS="TiB GiB MiB KiB B"
+	local OUR_UNITS=
+	if [ "$SI" -eq 1 ]
+	then
+		OUR_UNITS="$SI_UNITS"
+	else
+		OUR_UNITS="$IEC_UNITS"
+	fi
+
+	local UNIT UNIT_SIZE
+	for UNIT in $OUR_UNITS
+	do
+		local DID_IT=0
+		UNIT_SIZE_STR=$(size-to-unit "$SIZE" "$UNIT") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ]
+		then
+			warn "Warning: size-to-some-unit: size-to-unit failed for size \"$SIZE\", unit \"$UNIT\""
+			continue
+		fi
+
+		local UNIT_SIZE DUMMY
+		read UNIT_SIZE DUMMY <<<"$UNIT_SIZE_STR"
+		[ "$UNIT_SIZE" -gt 0 ] || continue
+
+		echo "$UNIT_SIZE_STR"
+		return 0
+	done
+
+	echo "$SIZE B"
+	return 0
+}
+
 get-btrfs-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-btrfs-parents needs exactly one argument, the mount point or device path"
 
@@ -136,7 +234,7 @@ get-device-parents() {
 	*,*,[fd])
 		# File or directory; use df to get at parent device!
 		local DEV_MOUNT_POINT="$DEV"
-		local LOOP_COUNTER=0 FS_TYPE= FS_SOURCE= FS_TARGET=
+		local LOOP_COUNTER=0 FS_TYPE= FS_SOURCE= FS_TARGET= FS_SIZE=
 		while [ "$[++LOOP_COUNTER]" -eq 1 ] || { [ "$FS_TYPE" = "-" ] && [ "$FS_SOURCE" = "-" ]; }
 		do
 			# (Arbitrary limit, but it can't be helped. (?)
@@ -158,14 +256,14 @@ get-device-parents() {
 			fi
 
 			local DID_IT=0 FS_TYPE_LINES=
-			FS_TYPE_LINES="$(df --output=fstype,source,target "$DEV_MOUNT_POINT")" && DID_IT=1
+			FS_TYPE_LINES="$(df --output=fstype,source,target,size --block-size=1 "$DEV_MOUNT_POINT")" && DID_IT=1
 			if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
 			then
 				warn "Error: get-device-parents can't determine filesystem type (df failed) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
 				return 1
 			fi
 			local DUMMY
-			read FS_TYPE FS_SOURCE FS_TARGET DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
+			read FS_TYPE FS_SOURCE FS_TARGET FS_SIZE DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
 			if [ -z "$FS_TYPE" ]
 			then
 				warn "Error: get-device-parents can't determine filesystem type (can't parse df output) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
@@ -179,6 +277,19 @@ get-device-parents() {
 		fi
 
 		echo DEV_TYPE "$DEV_FILE_TYPE on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
+		if [ "$DEV_TYPE" = "f" ]
+		then
+			local FILE_SIZE
+			local DID_IT=0
+			FILE_SIZE=$(stat -c "%s" "$DEV") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$FILE_SIZE" ]
+			then
+				warn "Warning: get-device-parents can't determine file \"$DEV\"'s size, omitting"
+			else
+				echo SIZE file "$FILE_SIZE"
+			fi
+		fi
+		echo SIZE file-system "$FS_SIZE"
 
 		case "$FS_TYPE" in
 		btrfs)
@@ -354,6 +465,20 @@ recurse-device-parents() {
 				;;
 			PARENT)
 				DEV_PARENTS=("${DEV_PARENTS[@]}" "$VALUE")
+				;;
+			SIZE)
+				local SIZE_TYPE SIZE_VALUE DUMMY
+				read SIZE_TYPE SIZE_VALUE DUMMY <<<"$VALUE"
+
+				if [ "$VERBOSE" -ge 1 ]
+				then
+					echo "$INDENT* Size of $SIZE_TYPE: $SIZE_VALUE B ($(size-to-some-unit --si "$SIZE_VALUE"), $(size-to-some-unit --iec "$SIZE_VALUE"))"
+				elif [ "$VERBOSE" -le -1 ]
+				then
+					: # Nothing.
+				else
+					echo "$INDENT  $SIZE_TYPE: $(size-to-some-unit --iec "$SIZE_VALUE")"
+				fi
 				;;
 			*)
 				die "Internal error: get-device-parents returned unrecognized key \"$KEY\" for device path \"$DEV\""
