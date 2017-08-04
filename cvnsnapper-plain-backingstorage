@@ -129,6 +129,33 @@ size-to-some-unit() {
 	return 0
 }
 
+unit-to-size() {
+	[ "$#" -eq 1 ] || die "Internal error: unit-to-size needs exactly one argument, the unit to convert to size-in-bytes"
+	local UNIT="$1"; shift
+	# Use Perl to cope with floating point numbers,
+	# and for regex flexibility.
+	perl -le '
+		use strict;
+		use warnings;
+		my $input = <>;
+		chomp($input); 
+		$input =~ /^\s*([0-9]+(?:\.[0-9]+))\s*(B|[KGT]iB|[KGT]B)\s*$/
+		  or die("Error: unit-to-size: Cannot parse size + unit\n");
+		my ($size_unit, $unit) = ($1, $2);
+		if ($unit eq "B") { print($size_unit); }
+		elsif ($unit eq "KiB") { print($size_unit * 1024**1); }
+		elsif ($unit eq "MiB") { print($size_unit * 1024**2); }
+		elsif ($unit eq "GiB") { print($size_unit * 1024**3); }
+		elsif ($unit eq "TiB") { print($size_unit * 1024**4); }
+		elsif ($unit eq "KB") { print($size_unit * 1000**1); }
+		elsif ($unit eq "MB") { print($size_unit * 1000**2); }
+		elsif ($unit eq "GB") { print($size_unit * 1000**3); }
+		elsif ($unit eq "TB") { print($size_unit * 1000**4); }
+		else { die("Error: unit-to-size: Unsupported unit \"$unit\""); }
+		exit(0);
+	' <<<"$UNIT"
+}
+
 get-btrfs-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-btrfs-parents needs exactly one argument, the mount point or device path"
 
@@ -144,6 +171,7 @@ get-btrfs-parents() {
 	fi
 
 	local BTRFS_DEVICES=()
+	local BTRFS_DEV_COUNT= BTRFS_DEV_SEEN=
 	local TOKEN1 TOKEN2 REST
 	while read TOKEN1 TOKEN2 REST
 	do
@@ -152,10 +180,37 @@ get-btrfs-parents() {
 			# Ignore, for now.
 			;;
 		Total)
-			# Ignore, for now.
+			[ -z "$BTRFS_DEV_COUNT" ] || warn "Warning: get-btrfs-parents already got btrfs device count! Previous value was \"$BTRFS_DEV_COUNT\""
+			local DID_IT=0
+			BTRFS_DEV_COUNT=$(sed -n -e 's#^Total devices \([0-9]\+\)\( .*\)*$#\1#p' <<<"$TOKEN1 $TOKEN2 $REST") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_DEV_COUNT" ]
+			then
+				warn "Warning: get-btrfs-parents can't get btrfs device count"
+			fi
 			;;
 		devid)
 			# Bingo!
+
+			local BTRFS_CUR_DEV_ID="$TOKEN2"  # (Hope this won't break too soon. :-S)
+			if [ -n "$BTRFS_DEV_COUNT" ] && [ "$BTRFS_CUR_DEV_ID" -gt "$BTRFS_DEV_COUNT" ]
+			then
+				warn "Warning: get-btrfs-parents sees devid \"$BTRFS_CUR_DEV_ID\" greater than total device count \"$BTRFS_DEV_COUNT\"; please check"
+			fi
+			if grep -q -E "\\b$BTRFS_CUR_DEV_ID\\b" <<<"$BTRFS_DEV_SEEN"
+			then
+				warn "Warning: get-btrfs-parents already seen devid \"$BTRFS_CUR_DEV_ID\"; please check"
+			fi
+			BTRFS_DEV_SEEN="$BTRFS_DEV_SEEN $BTRFS_CUR_DEV_ID"
+
+			local DID_IT=0 BTRFS_CUR_DEV_SIZE=
+			BTRFS_CUR_DEV_SIZE=$(sed -n -e 's#^.*size \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_SIZE" ]
+			then
+				warn "Error: get-btrfs-parents couldn't extract device size from $TOKEN1 $TOKEN2"  # Usually: devid N
+				return 1
+			fi
+			echo SIZE "dev_$BTRFS_CUR_DEV_ID" "$(unit-to-size "$BTRFS_CUR_DEV_SIZE")"
+
 			local DID_IT=0 BTRFS_CUR_DEV_PATH=
 			BTRFS_CUR_DEV_PATH=$(sed -n -e 's#^.*path \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
 			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_PATH" ]
@@ -181,6 +236,12 @@ get-btrfs-parents() {
 	then
 		warn "Error: get-btrfs-parents could not determine any parent devices for btrfs at \"$DEV\""
 		return 1
+	fi
+
+	if [ "${#BTRFS_DEVICES[*]}" -ne "$BTRFS_DEV_COUNT" ]
+	then
+		warn "Warning: get-btrfs-parents got more/fewer devices (${#BTRFS_DEVICES[*]}) than what was announced as total device count ($BTRFS_DEV_COUNT) before; please check"
+		warn "Continuing, to give a chance of successful use even during time of breakage (e.g., bad disk)"
 	fi
 
 	for PARENT in "${BTRFS_DEVICES[@]}"
