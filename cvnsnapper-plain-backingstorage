@@ -202,15 +202,6 @@ get-btrfs-parents() {
 			fi
 			BTRFS_DEV_SEEN="$BTRFS_DEV_SEEN $BTRFS_CUR_DEV_ID"
 
-			local DID_IT=0 BTRFS_CUR_DEV_SIZE=
-			BTRFS_CUR_DEV_SIZE=$(sed -n -e 's#^.*size \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
-			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_SIZE" ]
-			then
-				warn "Error: get-btrfs-parents couldn't extract device size from $TOKEN1 $TOKEN2"  # Usually: devid N
-				return 1
-			fi
-			echo SIZE "dev_$BTRFS_CUR_DEV_ID" "$(unit-to-size "$BTRFS_CUR_DEV_SIZE")"
-
 			local DID_IT=0 BTRFS_CUR_DEV_PATH=
 			BTRFS_CUR_DEV_PATH=$(sed -n -e 's#^.*path \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
 			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_PATH" ]
@@ -219,6 +210,15 @@ get-btrfs-parents() {
 				return 1
 			fi
 			BTRFS_DEVICES=("${BTRFS_DEVICES[@]}" "$BTRFS_CUR_DEV_PATH")
+
+			local DID_IT=0 BTRFS_CUR_DEV_SIZE=
+			BTRFS_CUR_DEV_SIZE=$(sed -n -e 's#^.*size \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$BTRFS_CUR_DEV_SIZE" ]
+			then
+				warn "Error: get-btrfs-parents couldn't extract device size from $TOKEN1 $TOKEN2"  # Usually: devid N
+				return 1
+			fi
+			echo SIZE "devid=$BTRFS_CUR_DEV_ID,path=$BTRFS_CUR_DEV_PATH" "$(unit-to-size "$BTRFS_CUR_DEV_SIZE")"
 			;;
 		"")
 			# Ignore empty line.
