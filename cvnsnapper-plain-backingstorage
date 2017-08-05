@@ -370,9 +370,9 @@ get-device-parents-fs() {
 		return
 		;;
 	zfs)
-		case "$FS_TARGET" in
+		case "$FS_SOURCE" in
 		""|"-"|"none")
-			warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for ZFS \"zpool status\" call"
+			warn "Error: get-device-parents can't determine filesystem mount source (df doesn't know at end of recursion) for \"$DEV\", but need to know for ZFS \"zpool status\" call"
 			return 1
 			;;
 		esac
