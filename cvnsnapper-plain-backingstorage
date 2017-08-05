@@ -205,13 +205,13 @@ get-zfs-parents() {
 		local INDENT_LEN="${#INDENT}"
 		if [ -n "$INDENT_PARSING_OFF" ]
 		then
-			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${ZPOOL_SIZE:+"zpool=$ZPOOL_SIZE"}
+			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 		elif [ "$[INDENT_LEN % 2]" -ne 0 ]
 		then
 			warn "Warning: get-zfs-parents got \"zpool status\" line that is not indented as expected -- grouping will be turned off!"
 			INDENT_PARSING_OFF="yes"
 
-			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${ZPOOL_SIZE:+"zpool=$ZPOOL_SIZE"}
+			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 		else
 			local INDENT_SHIFT="$[INDENT_LEN / 2]"
 			if [ -z "$PREV_INDENT_SHIFT" ] || [ "$INDENT_SHIFT" -eq 0 ]
@@ -251,7 +251,7 @@ get-zfs-parents() {
 					# Build up the pool group string.
 					POOL_GROUP_STR="$POOL_GROUP_STR,group=$POOL_GROUP"
 				done
-				echo SIZE "zpool=$ZPOOL$POOL_GROUP_STR,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${ZPOOL_SIZE:+"zpool=$ZPOOL_SIZE"}
+				echo SIZE "zpool=$ZPOOL$POOL_GROUP_STR,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 			fi
 		fi
 	done < <(sed -e '1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d;s/\(\S\)\s.*/\1/;' <<<"$ZPOOL_STATUS")
