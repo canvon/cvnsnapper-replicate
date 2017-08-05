@@ -165,7 +165,7 @@ get-zfs-parents() {
 	local ZFS="$1"
 	shift
 
-	local ZPOOL=$(echo "$ZFS" | sed 's/\/.*//;s/@.*//;')
+	local ZPOOL=$(sed -e 's#/.*##;s#@.*##;' <<<"$ZFS")
 
 	local SIZE=$(zfs get -pH used "$ZFS" | cut -f3)
 	local SIZE_ZPOOL=$(zpool get -pH size "$ZPOOL" | cut -f3)
@@ -178,7 +178,7 @@ get-zfs-parents() {
 		return 1
 	fi
 
-	local POOL_DEVICES=$(echo "$ZPOOL_STATUS" | sed -n 's/\s\+/\t/g;s/^\s\+//;/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/,$p' | cut -f1 | grep ^/ | sed 's/^/PARENT /')
+	local POOL_DEVICES=$(cat <<<"$ZPOOL_STATUS" | sed -n -e 's/\s\+/\t/g;s/^\s\+//;/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/,$p' | cut -f1 | sed -n -e 's#^/#PARENT &#p')
 
 	if [ -z "$POOL_DEVICES" ]
 	then
@@ -188,7 +188,7 @@ get-zfs-parents() {
 
 	echo "SIZE zpool=$ZPOOL $SIZE_ZPOOL"
 	echo "SIZE zfs=$ZFS $SIZE zpool=$SIZE_ZPOOL"
-	echo "$POOL_DEVICES"
+	cat <<<"$POOL_DEVICES"
 
 	return 0
 }
