@@ -13,6 +13,10 @@ warn() {
 
 die() {
 	warn "Fatal: $*"
+
+	# Allow to stop dying, e.g., when sourced from a debug shell.
+	[ -n "$CVNSNAPPER_DEBUG" ] && grep -E -q '\bdont_die\b' <<<"$CVNSNAPPER_DEBUG" && return 2
+
 	exit 1
 }
 
@@ -173,8 +177,14 @@ get-zfs-parents() {
 	[ -n "$SIZE"       ] && echo SIZE "zfs=$ZFS"     "$SIZE"       ${SIZE_ZPOOL:+zpool="$SIZE_ZPOOL"}
 	[ -n "$SIZE_ZPOOL" ] && echo SIZE "zpool=$ZPOOL" "$SIZE_ZPOOL"
 
-	local DID_IT=0 ZPOOL_STATUS=
-	ZPOOL_STATUS=$(zpool status -P "$ZPOOL") && DID_IT=1
+	if [ -n "$CVNSNAPPER_DEBUG" ] && grep -E -q '\bzpool_status\b' <<<"$CVNSNAPPER_DEBUG"
+	then
+		:  # Omit the call, under the assumption that the
+		   # output variables have been set externally.
+	else
+		local DID_IT=0 ZPOOL_STATUS=
+		ZPOOL_STATUS=$(zpool status -P "$ZPOOL") && DID_IT=1
+	fi
 	if [ "$DID_IT" -eq 0 ] || [ -z "$ZPOOL_STATUS" ]
 	then
 		warn "Error: get-zfs-parents couldn't get pool status via \"zpool\" command for pool \"$ZPOOL\" that contains \"$ZFS\""
@@ -978,6 +988,9 @@ recurse-device-parents() {
 #
 
 VERBOSE=0
+
+# Allow sourcing the script for debugging.
+[ -n "$CVNSNAPPER_SOURCE" ] && [ "$CVNSNAPPER_SOURCE" -gt 0 ] && return 0
 
 USAGE="cvnsnapper-plain-backingstorage show BTRFS_MOUNT_POINT"
 
