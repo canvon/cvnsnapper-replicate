@@ -184,7 +184,7 @@ get-zfs-parents() {
 		local POOL_DEVICE DUMMY
 		read POOL_DEVICE DUMMY <<<"$POOL_DEVICE_INDENTED"
 		[ -z "$POOL_DEVICE" ] && continue
-		POOL_DEVICES=("${POOL_DEVICES[@]}" "$POOL_DEVICE")
+		POOL_DEVICES+="$POOL_DEVICE"
 	done < <(sed -e '1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d;s/\(\S\)\s.*/\1/;' <<<"$ZPOOL_STATUS")
 
 	if [ "${#POOL_DEVICES[*]}" -lt 1 ]
@@ -257,7 +257,7 @@ get-btrfs-parents() {
 				warn "Error: get-btrfs-parents couldn't extract device path from $TOKEN1 $TOKEN2"  # Usually: devid N
 				return 1
 			fi
-			BTRFS_DEVICES=("${BTRFS_DEVICES[@]}" "$BTRFS_CUR_DEV_PATH")
+			BTRFS_DEVICES+="$BTRFS_CUR_DEV_PATH"
 
 			local DID_IT=0 BTRFS_CUR_DEV_SIZE=
 			BTRFS_CUR_DEV_SIZE=$(sed -n -e 's#^.*size \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
@@ -838,7 +838,7 @@ recurse-device-parents() {
 				fi
 				;;
 			PARENT)
-				DEV_PARENTS=("${DEV_PARENTS[@]}" "$VALUE")
+				DEV_PARENTS+="$VALUE"
 				;;
 			SIZE)
 				local SIZE_TYPE SIZE_VALUE SIZE_REF DUMMY
