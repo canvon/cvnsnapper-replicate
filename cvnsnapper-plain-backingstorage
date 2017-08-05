@@ -254,7 +254,19 @@ get-zfs-parents() {
 				echo SIZE "zpool=$ZPOOL$POOL_GROUP_STR,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 			fi
 		fi
-	done < <(sed -e '1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d;s/\(\S\)\s.*/\1/;' <<<"$ZPOOL_STATUS")
+	done < <(sed -n -e '/^\s*config:/,/^[^\t]/ { /^[^\t]/d; s/^\t//; 1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d; s/\(\S\)\s.*/\1/; p; }' <<<"$ZPOOL_STATUS")
+	# ^ Explanation of what the sed one-liner above does:
+	# * The config starts with "config:" (which currently isn't, but could
+	#   easily later be, preceded by white-space). Take everything
+	#   from there until a line that does not start with tab anymore
+	#   as basic range.
+	#   During that range:
+	# * Delete everything that does not start with a tab; like the "config:"
+	#   before or "errors:" after the config data.
+	# * Then, Remove the one leading tab.
+	# * Delete everything until the header.
+	# * Then, remove everything after the end of the first non-whitespace.
+	#   The result is the final output.
 
 	if [ "${#POOL_DEVICES[*]}" -lt 1 ]
 	then
