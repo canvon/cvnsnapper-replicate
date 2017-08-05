@@ -186,8 +186,8 @@ get-zfs-parents() {
 		return 1
 	fi
 
-	echo SIZE "zpool=$ZPOOL" "$SIZE_ZPOOL"
-	echo SIZE "zfs=$ZFS"     "$SIZE"       "zpool=$SIZE_ZPOOL"
+	[ -n "$SIZE_ZPOOL" ] && echo SIZE "zpool=$ZPOOL" "$SIZE_ZPOOL"
+	[ -n "$SIZE"       ] && echo SIZE "zfs=$ZFS"     "$SIZE"       ${SIZE_ZPOOL:+zpool="$SIZE_ZPOOL"}
 	cat <<<"$POOL_DEVICES"
 
 	return 0
