@@ -205,7 +205,7 @@ get-zfs-parents() {
 		local INDENT_LEN="${#INDENT}"
 		if [ -n "$INDENT_PARSING_OFF" ]
 		then
-			: # Nothing.
+			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${ZPOOL_SIZE:+"zpool=$ZPOOL_SIZE"}
 		elif [ "$[INDENT_LEN % 2]" -ne 0 ]
 		then
 			warn "Warning: get-zfs-parents got \"zpool status\" line that is not indented as expected -- grouping will be turned off!"
@@ -226,6 +226,7 @@ get-zfs-parents() {
 			then
 				# More than one additional shift? Argh!
 				warn "Warning: get-zfs-parents got a more-than-one shift in \"zpool status\" indentation -- grouping will be wrong!"
+				POOL_GROUP_PATH+="$POOL_PART"
 			elif [ "$INDENT_SHIFT" -lt "$PREV_INDENT_SHIFT" ]
 			then
 				# Back-shift(s)? Clear from array.
