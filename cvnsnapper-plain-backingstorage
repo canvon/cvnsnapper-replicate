@@ -174,8 +174,8 @@ get-zfs-parents() {
 	local SIZE=$(zfs get -pH used "$ZFS" | cut -f3)
 	local SIZE_ZPOOL=$(zpool get -pH size "$ZPOOL" | cut -f3)
 
-	[ -n "$SIZE"       ] && echo SIZE "zfs=$ZFS"     "$SIZE"       ${SIZE_ZPOOL:+zpool="$SIZE_ZPOOL"}
-	[ -n "$SIZE_ZPOOL" ] && echo SIZE "zpool=$ZPOOL" "$SIZE_ZPOOL"
+	[ -n "$SIZE"       ] && echo SIZE "zfs=$ZFS"     "${SIZE:-unknown}"       ${SIZE_ZPOOL:+zpool="$SIZE_ZPOOL"}
+	[ -n "$SIZE_ZPOOL" ] && echo SIZE "zpool=$ZPOOL" "${SIZE_ZPOOL:-unknown}"
 
 	if [ -n "$CVNSNAPPER_DEBUG" ] && grep -E -q '\bzpool_status\b' <<<"$CVNSNAPPER_DEBUG"
 	then
@@ -215,13 +215,13 @@ get-zfs-parents() {
 		local INDENT_LEN="${#INDENT}"
 		if [ -n "$INDENT_PARSING_OFF" ]
 		then
-			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
+			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "${POOL_DEVICE_SIZE:-unknown}" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 		elif [ "$[INDENT_LEN % 2]" -ne 0 ]
 		then
 			warn "Warning: get-zfs-parents got \"zpool status\" line that is not indented as expected -- grouping will be turned off!"
 			INDENT_PARSING_OFF="yes"
 
-			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
+			[ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "zpool=$ZPOOL,dev=$POOL_DEVICE" "${POOL_DEVICE_SIZE:-unknown}" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 		else
 			local INDENT_SHIFT="$[INDENT_LEN / 2]"
 			if [ -z "$PREV_INDENT_SHIFT" ] || [ "$INDENT_SHIFT" -eq 0 ]
@@ -261,7 +261,7 @@ get-zfs-parents() {
 					# Build up the pool group string.
 					POOL_GROUP_STR="$POOL_GROUP_STR,group=$POOL_GROUP"
 				done
-				echo SIZE "zpool=$ZPOOL$POOL_GROUP_STR,dev=$POOL_DEVICE" "$POOL_DEVICE_SIZE" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
+				echo SIZE "zpool=$ZPOOL$POOL_GROUP_STR,dev=$POOL_DEVICE" "${POOL_DEVICE_SIZE:-unknown}" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
 			fi
 		fi
 	done < <(sed -n -e '/^\s*config:/,/^[^\t]/ { /^[^\t]/d; s/^\t//; 1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d; s/\(\S\)\s.*/\1/; p; }' <<<"$ZPOOL_STATUS")
@@ -538,7 +538,7 @@ get-device-parents-scsidisk() {
 	else
 		echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_device=$HOLDING_SIZE}
 	fi
-	[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "$HOLDING_SIZE"
+	[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "${HOLDING_SIZE:-unknown}"
 
 	return 0
 }
@@ -624,13 +624,13 @@ get-device-parents-md() {
 				if [ -n "$MD_LAST_SIZE_MDADM" ]
 				then
 					local MD_LAST_SIZE="$[MD_LAST_SIZE_MDADM * 1024]"
-					echo SIZE "level=$MD_LEVEL,avail_devices_size" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
+					echo SIZE "level=$MD_LEVEL,avail_devices_size" "${MD_LAST_SIZE:-unknown}" ${SIZE:+block_device=$SIZE}
 					MD_AVAIL_DEV_SIZE_SEEN=1
 				fi
 			fi
 			local MD_LAST_SIZE=
 			MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
-			[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
+			[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "${MD_LAST_SIZE:-unknown}" ${SIZE:+block_device=$SIZE}
 
 			echo PARENT "$VALUE"
 			;;
