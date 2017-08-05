@@ -191,7 +191,7 @@ get-zfs-parents() {
 		if [ "${POOL_PART:0:1}" = "/" ]
 		then
 			POOL_DEVICE="$POOL_PART"
-			POOL_DEVICES+="$POOL_DEVICE"
+			POOL_DEVICES+=("$POOL_DEVICE")
 
 			# (Get pool device size purely opportunistically.)
 			# (If that gives an error, it will be handled again
@@ -221,12 +221,12 @@ get-zfs-parents() {
 			elif [ "$INDENT_SHIFT" -eq "$[PREV_INDENT_SHIFT+1]" ]
 			then
 				# One additional shift; append.
-				POOL_GROUP_PATH+="$POOL_PART"
+				POOL_GROUP_PATH+=("$POOL_PART")
 			elif [ "$INDENT_SHIFT" -gt "$PREV_INDENT_SHIFT" ]
 			then
 				# More than one additional shift? Argh!
 				warn "Warning: get-zfs-parents got a more-than-one shift in \"zpool status\" indentation -- grouping will be wrong!"
-				POOL_GROUP_PATH+="$POOL_PART"
+				POOL_GROUP_PATH+=("$POOL_PART")
 			elif [ "$INDENT_SHIFT" -lt "$PREV_INDENT_SHIFT" ]
 			then
 				# Back-shift(s)? Clear from array.
@@ -323,7 +323,7 @@ get-btrfs-parents() {
 				warn "Error: get-btrfs-parents couldn't extract device path from $TOKEN1 $TOKEN2"  # Usually: devid N
 				return 1
 			fi
-			BTRFS_DEVICES+="$BTRFS_CUR_DEV_PATH"
+			BTRFS_DEVICES+=("$BTRFS_CUR_DEV_PATH")
 
 			local DID_IT=0 BTRFS_CUR_DEV_SIZE=
 			BTRFS_CUR_DEV_SIZE=$(sed -n -e 's#^.*size \([^ ]*\)\( .*\)*$#\1#p' <<<"$REST") && DID_IT=1
@@ -904,7 +904,7 @@ recurse-device-parents() {
 				fi
 				;;
 			PARENT)
-				DEV_PARENTS+="$VALUE"
+				DEV_PARENTS+=("$VALUE")
 				;;
 			SIZE)
 				local SIZE_TYPE SIZE_VALUE SIZE_REF DUMMY
