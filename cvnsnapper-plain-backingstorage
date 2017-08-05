@@ -421,6 +421,7 @@ get-device-parents() {
 			esac
 
 			echo PARENT "$FS_SOURCE"
+			return 0
 			;;
 		esac
 		;;
