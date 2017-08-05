@@ -571,7 +571,34 @@ get-device-parents() {
 
 		return 0
 		;;
-	25[34],*,b)
+	24[0-9],*,b|25[0-4],*,b)  # block major 240-254, "local/experimental use" inside of "reserved for dynamic assignment"
+		local SYS_DEV_SYMLINK="/sys/dev/block/$DEV_MAJOR:$DEV_MINOR"
+		if [ -L "$SYS_DEV_SYMLINK" ]
+		then
+			local DID_IT=0 SYS_DEV_SYMLINK_TARGET=
+			SYS_DEV_SYMLINK_TARGET=$(readlink "$SYS_DEV_SYMLINK") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$SYS_DEV_SYMLINK_TARGET" ]
+			then
+				# TODO: Additionally invoke general block special handler?
+				warn "Warning: get-device-parents can't determine what block special major:minor $DEV_MAJOR:$DEV_MINOR is used for (readlink failed on \"$SYS_DEV_SYMLINK\")"
+				return 1
+			fi
+
+			case "$SYS_DEV_SYMLINK_TARGET" in
+			../../devices/virtual/block/dm-*)
+				: # device-mapper for sure; just continue
+				;;
+			*)
+				# TODO: Additionally invoke general block special handler?
+				warn "Warning: get-device-parents can't determine what block special major:minor $DEV_MAJOR:$DEV_MINOR is used for (unrecognized symlink target \"$SYS_DEV_SYMLINK_TARGET\" from \"$SYS_DEV_SYMLINK\")"
+				return 1
+				;;
+			esac
+		else
+			: # Simply assume device-mapper, for now. ...
+			warn "Warning: Assuming block major:minor $DEV_MAJOR:$DEV_MINOR is used for device-mapper; this may well be wrong!"
+		fi
+
 		# device-mapper (DM)
 		local DM_NAME=
 		DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
