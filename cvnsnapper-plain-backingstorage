@@ -41,7 +41,7 @@ size-to-unit() {
 }
 
 size-to-some-unit() {
-	local SI=0 BOTH=0
+	local SI=0 BOTH=0 SEPARATOR=", "
 	while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
 	do
 		local OPTION="$1"
@@ -58,6 +58,9 @@ size-to-some-unit() {
 			;;
 		--both)
 			BOTH=1
+			;;
+		--separator=*)
+			SEPARATOR="${OPTION#--separator=}"
 			;;
 		*)
 			die "Internal error: size-to-some-unit got invalid option \"$OPTION\""
@@ -106,7 +109,7 @@ size-to-some-unit() {
 				# Try to be sure to have same order of magnitude for both values.
 				# (Otherwise, there could be "1 TB, 1000 GiB"
 				# which should rather read "1073 GB, 1000 GiB".)
-				echo "$(size-to-unit "$SIZE" "${UNIT:0:1}B"), $UNIT_SIZE_STR"
+				echo "$(size-to-unit "$SIZE" "${UNIT:0:1}B")$SEPARATOR$UNIT_SIZE_STR"
 			fi
 		fi
 		return 0
@@ -786,7 +789,7 @@ recurse-device-parents() {
 				then
 					: # Nothing.
 				else
-					echo "$INDENT  $SIZE_TYPE: $(size-to-some-unit --iec "$SIZE_VALUE")${SIZE_PERCENT:+ ($SIZE_PERCENT${SIZE_REF_NAME:+ of $SIZE_REF_NAME})}"
+					echo "$INDENT  $SIZE_TYPE: $(size-to-some-unit --both --separator=" / " "$SIZE_VALUE")${SIZE_PERCENT:+ ($SIZE_PERCENT${SIZE_REF_NAME:+ of $SIZE_REF_NAME})}"
 				fi
 				;;
 			*)
