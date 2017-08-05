@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# cvnsnapper-plain-backingstorage - btrfs backing storage
+# cvnsnapper-plain-backingstorage - examine file-system/device backing storage
 # Copyright (C) 2017  Fabian Pietsch <fabian@canvon.de>
 
 warn() {
