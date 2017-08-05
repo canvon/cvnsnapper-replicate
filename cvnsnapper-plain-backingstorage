@@ -3,6 +3,10 @@
 # cvnsnapper-plain-backingstorage - examine file-system/device backing storage
 # Copyright (C) 2017  Fabian Pietsch <fabian@canvon.de>
 
+#
+# General helper functions
+#
+
 warn() {
 	echo "${0##*/}: $*" >&2
 }
@@ -12,6 +16,10 @@ die() {
 	exit 1
 }
 
+
+#
+# Convert between size in bytes and size in units, and back
+#
 
 size-to-unit() {
 	[ "$#" -eq 2 ] || die "Internal error: size-to-unit needs exactly two arguments, the size and the unit"
@@ -146,6 +154,11 @@ unit-to-size() {
 	' <<<"$UNIT"
 }
 
+
+#
+# Per-file-system type helpers
+#
+
 get-zfs-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-zfs-parents needs exactly one argument, the mount point or device path"
 
@@ -270,6 +283,11 @@ get-btrfs-parents() {
 
 	return 0
 }
+
+
+#
+# Get file-system/device parents
+#
 
 get-device-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-device-parents needs exactly one argument, the device path"
@@ -716,6 +734,11 @@ get-device-parents() {
 	return 0
 }
 
+
+#
+# Handle recursion, and generate output while doing so
+#
+
 recurse-device-parents() {
 	[ "$#" -ge 1 ] || die "Internal error: recurse-device-parents needs at least one argument, the indentation"
 	local INDENT="$1"; shift
@@ -819,6 +842,10 @@ recurse-device-parents() {
 	return 0
 }
 
+
+#
+# main -- parse command-line arguments and initiate recursion
+#
 
 VERBOSE=0
 
