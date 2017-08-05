@@ -178,9 +178,16 @@ get-zfs-parents() {
 		return 1
 	fi
 
-	local POOL_DEVICES=$(cat <<<"$ZPOOL_STATUS" | sed -n -e 's/\s\+/\t/g;s/^\s\+//;/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/,$p' | cut -f1 | sed -n -e 's#^/#PARENT &#p')
+	local POOL_DEVICES=() POOL_DEVICE_INDENTED DUMMY
+	while IFS=$'\t\n' read POOL_DEVICE_INDENTED DUMMY
+	do
+		local POOL_DEVICE DUMMY
+		read POOL_DEVICE DUMMY <<<"$POOL_DEVICE_INDENTED"
+		[ -z "$POOL_DEVICE" ] && continue
+		POOL_DEVICES=("${POOL_DEVICES[@]}" "$POOL_DEVICE")
+	done < <(sed -e '1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d;s/\(\S\)\s.*/\1/;' <<<"$ZPOOL_STATUS")
 
-	if [ -z "$POOL_DEVICES" ]
+	if [ "${#POOL_DEVICES[*]}" -lt 1 ]
 	then
 		warn "Error: get-zfs-parents could not determine any parent devices for pool \"$ZPOOL\" that contains \"$ZFS\""
 		return 1
@@ -188,7 +195,11 @@ get-zfs-parents() {
 
 	[ -n "$SIZE_ZPOOL" ] && echo SIZE "zpool=$ZPOOL" "$SIZE_ZPOOL"
 	[ -n "$SIZE"       ] && echo SIZE "zfs=$ZFS"     "$SIZE"       ${SIZE_ZPOOL:+zpool="$SIZE_ZPOOL"}
-	cat <<<"$POOL_DEVICES"
+
+	for PARENT in "${POOL_DEVICES[@]}"
+	do
+		echo PARENT "$PARENT"
+	done
 
 	return 0
 }
