@@ -248,6 +248,7 @@ get-zfs-parents() {
 				# Replace in array.
 				POOL_GROUP_PATH["$INDENT_SHIFT"]="$POOL_PART"
 			fi
+			PREV_INDENT_SHIFT="$INDENT_SHIFT"
 
 			# Now, potentially output size information with the full group path!
 			if [ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ]
