@@ -165,10 +165,13 @@ get-zfs-parents() {
 	local ZFS="$1"
 	shift
 
-	local ZPOOL=$(df "$ZFS" | tail -1 | cut -f1 -d" " | sed 's/\/.*//;s/@.*//;')
+	local ZPOOL=$(echo "$ZFS" | sed 's/\/.*//;s/@.*//;')
+
+	local SIZE=$(zfs get -pH used "$ZFS" | cut -f3)
+	local SIZE_ZPOOL=$(zpool get -pH size "$ZPOOL" | cut -f3)
 
 	local DID_IT=0 ZPOOL_STATUS=
-	ZPOOL_STATUS=$(zpool status -PL "$ZPOOL") && DID_IT=1
+	ZPOOL_STATUS=$(zpool status -P "$ZPOOL") && DID_IT=1
 	if [ "$DID_IT" -eq 0 ] || [ -z "$ZPOOL_STATUS" ]
 	then
 		warn "Error: get-zfs-parents couldn't get pool status via \"zpool\" command for pool \"$ZPOOL\" that contains \"$ZFS\""
@@ -183,6 +186,8 @@ get-zfs-parents() {
 		return 1
 	fi
 
+	echo "SIZE zpool=$ZPOOL $SIZE_ZPOOL"
+	echo "SIZE zfs=$ZFS $SIZE zpool=$SIZE_ZPOOL"
 	echo "$POOL_DEVICES"
 
 	return 0
@@ -372,7 +377,7 @@ get-device-parents-fs() {
 			;;
 		esac
 
-		get-zfs-parents "$FS_TARGET"
+		get-zfs-parents "$FS_SOURCE"
 		return
 		;;
 	*)
