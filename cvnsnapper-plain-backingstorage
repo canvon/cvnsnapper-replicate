@@ -289,6 +289,361 @@ get-btrfs-parents() {
 # Get file-system/device parents
 #
 
+get-device-parents-fs() {
+	# File or directory; use df to get at parent device!
+	local DEV_MOUNT_POINT="$DEV"
+	local LOOP_COUNTER=0 FS_TYPE= FS_SOURCE= FS_TARGET= FS_SIZE=
+	while [ "$[++LOOP_COUNTER]" -eq 1 ] || { [ "$FS_TYPE" = "-" ] && [ "$FS_SOURCE" = "-" ]; }
+	do
+		# (Arbitrary limit, but it can't be helped. (?)
+		# Else we risk an endless loop.)
+		if [ "$LOOP_COUNTER" -gt 50 ]
+		then
+			warn "Error: get-device-parents can't determine filesystem mount point for \"$DEV\", giving up at try $LOOP_COUNTER with last candidate mount point \"$DEV_MOUNT_POINT\" (result \"$FS_TARGET\")"
+			return 1
+		fi
+
+		if [ "$LOOP_COUNTER" -gt 1 ]
+		then
+			# If it's a non-directory (e.g., a file), strip off file name
+			# to get to something that has ".." (parent directory).
+			[ -d "$DEV_MOUNT_POINT" ] || DEV_MOUNT_POINT="${DEV_MOUNT_POINT%/*}"
+
+			# Next try: Parent directory.
+			DEV_MOUNT_POINT="$DEV_MOUNT_POINT/.."
+		fi
+
+		local DID_IT=0 FS_TYPE_LINES=
+		FS_TYPE_LINES="$(df --output=fstype,source,target,size --block-size=1 "$DEV_MOUNT_POINT")" && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
+		then
+			warn "Error: get-device-parents can't determine filesystem type (df failed) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
+			return 1
+		fi
+		local DUMMY
+		read FS_TYPE FS_SOURCE FS_TARGET FS_SIZE DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
+		if [ -z "$FS_TYPE" ]
+		then
+			warn "Error: get-device-parents can't determine filesystem type (can't parse df output) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
+			return 1
+		fi
+	done
+	if [ "$FS_TYPE" = "-" ]
+	then
+		warn "Error: get-device-parents can't determine filesystem type (df doesn't know) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
+		return 1
+	fi
+
+	local DEV_TYPE_INFO="$DEV_FILE_TYPE"
+	[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
+	echo DEV_TYPE "$DEV_TYPE_INFO"
+
+	if [ "$DEV_TYPE" = "f" ]
+	then
+		local FILE_SIZE
+		local DID_IT=0
+		FILE_SIZE=$(stat -c "%s" "$DEV") && DID_IT=1
+		if [ "$DID_IT" -eq 0 ] || [ -z "$FILE_SIZE" ]
+		then
+			warn "Warning: get-device-parents can't determine file \"$DEV\"'s size, omitting"
+		else
+			echo SIZE file "$FILE_SIZE"
+		fi
+	fi
+	echo SIZE file-system "$FS_SIZE"
+
+	case "$FS_TYPE" in
+	btrfs)
+		case "$FS_TARGET" in
+		""|"-"|"none")
+			warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for \"btrfs filesystem show\" call"
+			return 1
+			;;
+		esac
+
+		get-btrfs-parents "$FS_TARGET"
+		return
+		;;
+	zfs)
+		case "$FS_TARGET" in
+		""|"-"|"none")
+			warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for ZFS \"zpool status\" call"
+			return 1
+			;;
+		esac
+
+		get-zfs-parents "$FS_TARGET"
+		return
+		;;
+	*)
+		case "$FS_SOURCE" in
+		""|"-"|"none")
+			warn "Error: Recursing on a directory and/or mount point, but mount source seems to be unknown to df. Can't determine parent device!"
+			return 1
+			;;
+		esac
+
+		echo PARENT "$FS_SOURCE"
+		return 0
+		;;
+	esac
+}
+
+get-device-parents-scsidisk() {
+	# SCSI (or, today, about any type of) disk
+	local OUT_DEV_TYPE="SCSI-alike disk"
+	local DISK_INDEX="$[DEV_MINOR / 16]" PART_NR="$[DEV_MINOR % 16]"
+	local DISK_ALPHA="$(perl -le "print(chr(ord('a') + $DISK_INDEX))")"
+	local DISK_MNEMONIC="sd$DISK_ALPHA" DISK_SUB_MNEMONIC=
+	if [ "$PART_NR" -eq 0 ]
+	then
+		DISK_SUB_MNEMONIC="$DISK_MNEMONIC"
+		[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk $DISK_SUB_MNEMONIC)"
+	else
+		DISK_SUB_MNEMONIC="$DISK_MNEMONIC$PART_NR"
+		[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR ($DISK_SUB_MNEMONIC)"
+	fi
+	echo DEV_TYPE "$OUT_DEV_TYPE"
+
+	local DID_IT= SIZE=
+	# Additionally, determine size of "holding" device;
+	# that is, of which full hard disk this is a partition.
+	local HOLDING_SIZE=
+	if [ "$DISK_SUB_MNEMONIC" != "$DISK_MNEMONIC" ]
+	then
+		local DISK_MNEMONIC_PATH="/dev/$DISK_MNEMONIC"
+		if ! [ -b "$DISK_MNEMONIC_PATH" ]
+		then
+			warn "Warning: get-device-parents can't determine size of holding device as \"$DISK_MNEMONIC_PATH\" does not exist or is not a block special device"
+		else
+			DID_IT=0
+			HOLDING_SIZE=$(blockdev --getsize64 "$DISK_MNEMONIC_PATH") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$HOLDING_SIZE" ]
+			then
+				[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of holding device \"$DISK_MNEMONIC_PATH\" in bytes (command blockdev failed)"
+				HOLDING_SIZE=
+			fi
+		fi
+	fi
+	DID_IT=0
+	SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+	then
+		[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+		SIZE=
+	else
+		echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_device=$HOLDING_SIZE}
+	fi
+	[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "$HOLDING_SIZE"
+
+	return 0
+}
+
+get-device-parents-loop() {
+	# loop device
+	local DEV_TYPE_INFO="loop device"
+	[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO, index $DEV_MINOR (loop$DEV_MINOR)"
+	echo DEV_TYPE "$DEV_TYPE_INFO"
+
+	local DID_IT=0 SIZE=
+	SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+	then
+		[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+	else
+		echo SIZE block_device "$SIZE"
+	fi
+
+	local DID_IT=0 LOOP_LINES=
+	LOOP_LINES=$(losetup --list --noheadings --output=back-file "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$LOOP_LINES" ]
+	then
+		warn "Error: get-device-parents couldn't determine loop backing-file of device path \"$DEV\""
+		return 1
+	fi
+
+	echo PARENT "$LOOP_LINES"
+
+	return 0
+}
+
+get-device-parents-md() {
+	# md-raid (multiple-device RAID)
+
+	local DID_IT=0 MD_LINES=
+	MD_LINES=$(mdadm --query --detail --export "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$MD_LINES" ]
+	then
+		warn "Error: get-device-parents couldn't determine md-raid details of device path \"$DEV\""
+		return 1
+	fi
+
+	local MD_NAME=
+	MD_NAME=$(grep '^MD_NAME=' <<<"$MD_LINES" | sed -n -e 's#^MD_NAME=##p') || MD_NAME=
+
+	local DEV_TYPE_INFO="md-raid"
+	if [ "$VERBOSE" -ge 1 ]
+	then
+		DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks${MD_NAME:+, name $MD_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+	else
+		DEV_TYPE_INFO="$DEV_TYPE_INFO${MD_NAME:+, name $MD_NAME}"
+	fi
+	echo DEV_TYPE "$DEV_TYPE_INFO"
+
+	local DID_IT=0 SIZE=
+	SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+	then
+		[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+	else
+		echo SIZE block_device "$SIZE"
+	fi
+
+	local MD_LEVEL= MD_LAST_ROLE= MD_LAST_DEV= MD_AVAIL_DEV_SIZE_SEEN=0
+	local KEY VALUE
+	while IFS="=" read KEY VALUE
+	do
+		case "$KEY" in
+		MD_LEVEL)
+			MD_LEVEL="$VALUE"
+			;;
+		MD_DEVICE_*_ROLE)
+			MD_LAST_ROLE="$VALUE"
+			;;
+		MD_DEVICE_*_DEV)
+			MD_LAST_DEV="$VALUE"
+
+			if [ "$MD_AVAIL_DEV_SIZE_SEEN" -eq 0 ]
+			then
+				local MD_LAST_SIZE_MDADM=
+				MD_LAST_SIZE_MDADM=$(mdadm --query --examine "$MD_LAST_DEV" | sed -n -e 's#^ *Avail \+Dev \+Size \+: \+\([0-9]\+\) .*$#\1#p') || MD_LAST_SIZE_MDADM=
+				if [ -n "$MD_LAST_SIZE_MDADM" ]
+				then
+					local MD_LAST_SIZE="$[MD_LAST_SIZE_MDADM * 1024]"
+					echo SIZE "level=$MD_LEVEL,avail_devices_size" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
+					MD_AVAIL_DEV_SIZE_SEEN=1
+				fi
+			fi
+			local MD_LAST_SIZE=
+			MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
+			[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
+
+			echo PARENT "$VALUE"
+			;;
+		*)
+			# Ignore, for now.
+			;;
+		esac
+	done <<<"$MD_LINES"
+
+	return 0
+}
+
+get-device-parents-dm() {
+	# device-mapper (DM)
+	local DM_NAME=
+	DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
+	local DEV_TYPE_INFO="device-mapper"
+	if [ "$VERBOSE" -ge 1 ]
+	then
+		DEV_TYPE_INFO="$DEV_TYPE_INFO (DM${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+	else
+		DEV_TYPE_INFO="$DEV_TYPE_INFO${DM_NAME:+, name $DM_NAME}"
+	fi
+	echo DEV_TYPE "$DEV_TYPE_INFO"
+
+	local DID_IT=0 SIZE=
+	SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+	then
+		[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+	else
+		echo SIZE block_device "$SIZE"
+	fi
+
+	local DID_IT=0 DEV_TARGETS_SUBCMD="status" DEV_TARGETS_LINES=
+	[ "$VERBOSE" -ge 1 ] && DEV_TARGETS_SUBCMD="table"
+	DEV_TARGETS_LINES=$(dmsetup "$DEV_TARGETS_SUBCMD" "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
+	then
+		warn "Warning: get-device-parents couldn't get list of targets for device \"$DEV\", ignoring"
+	else
+		local START LEN_512 TARGET DUMMY
+		while read START LEN_512 TARGET DUMMY
+		do
+			[ -z "$START" ] && continue
+			local DM_INFO="target=$TARGET"
+			case "$TARGET" in
+			linear)
+				local LINEAR_DEV LINEAR_OFFSET DUMMY2
+				read LINEAR_DEV LINEAR_OFFSET DUMMY2 <<<"$DUMMY"
+				if [ -n "$LINEAR_DEV" ]
+				then
+					DM_INFO="$DM_INFO,dev=$LINEAR_DEV"
+					[ -n "$LINEAR_OFFSET" ] && DM_INFO="$DM_INFO,offset=$LINEAR_OFFSET"
+				fi
+				;;
+			crypt)
+				local CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2
+				read CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2 <<<"$DUMMY"
+				[ -n "$CRYPT_CIPHER" ] && DM_INFO="$DM_INFO,cipher=$CRYPT_CIPHER"
+				if [ -n "$CRYPT_DEV" ]
+				then
+					DM_INFO="$DM_INFO,dev=$CRYPT_DEV"
+					[ -n "$CRYPT_OFFSET" ] && DM_INFO="$DM_INFO,offset=$CRYPT_OFFSET"
+				fi
+				;;
+			*)
+				DM_INFO="$DM_INFO,target_is_unknown"
+				;;
+			esac
+			echo SIZE "$DM_INFO" "$[LEN_512 * 512]" ${SIZE:+block_device=$SIZE}
+		done <<<"$DEV_TARGETS_LINES"
+	fi
+
+	local FAILED=0 DEV_PARENTS_LINE= DEV_PARENTS=
+	DEV_PARENTS_LINE=$(dmsetup deps -o devname "$DEV") || FAILED=1
+	DEV_PARENTS=$(sed -n -e 's#^[0-9]\+ dependencies\t:##; s#^ \+(\([^)]*\))#\1\n#mgp' <<<"$DEV_PARENTS_LINE") || FAILED=1
+	if [ "$FAILED" -ne 0 ]
+	then
+		warn "Error: get-device-parents couldn't determine device-mapper dependencies of device path \"$DEV\""
+		return 1
+	fi
+
+	local PARENT
+	for PARENT in $DEV_PARENTS
+	do
+		if [ -e /dev/mapper/"$PARENT" ]
+		then
+			echo PARENT /dev/mapper/"$PARENT"
+		elif [ -e /dev/"$PARENT" ]
+		then
+			echo PARENT /dev/"$PARENT"
+		else
+			# This will result in error later, but don't just omit a parent.
+			echo PARENT "$PARENT"
+		fi
+	done
+
+	return 0
+}
+
+get-device-parents-generalblockdev() {
+	# general block special device
+	echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
+
+	local DID_IT=0 SIZE=
+	SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
+	then
+		[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
+	else
+		echo SIZE block_device "$SIZE"
+	fi
+
+	return 0
+}
+
 get-device-parents() {
 	[ "$#" -eq 1 ] || die "Internal error: get-device-parents needs exactly one argument, the device path"
 	local DEV="$1"
@@ -348,250 +703,24 @@ get-device-parents() {
 
 	case "$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE" in
 	*,*,[fd])
-		# File or directory; use df to get at parent device!
-		local DEV_MOUNT_POINT="$DEV"
-		local LOOP_COUNTER=0 FS_TYPE= FS_SOURCE= FS_TARGET= FS_SIZE=
-		while [ "$[++LOOP_COUNTER]" -eq 1 ] || { [ "$FS_TYPE" = "-" ] && [ "$FS_SOURCE" = "-" ]; }
-		do
-			# (Arbitrary limit, but it can't be helped. (?)
-			# Else we risk an endless loop.)
-			if [ "$LOOP_COUNTER" -gt 50 ]
-			then
-				warn "Error: get-device-parents can't determine filesystem mount point for \"$DEV\", giving up at try $LOOP_COUNTER with last candidate mount point \"$DEV_MOUNT_POINT\" (result \"$FS_TARGET\")"
-				return 1
-			fi
-
-			if [ "$LOOP_COUNTER" -gt 1 ]
-			then
-				# If it's a non-directory (e.g., a file), strip off file name
-				# to get to something that has ".." (parent directory).
-				[ -d "$DEV_MOUNT_POINT" ] || DEV_MOUNT_POINT="${DEV_MOUNT_POINT%/*}"
-
-				# Next try: Parent directory.
-				DEV_MOUNT_POINT="$DEV_MOUNT_POINT/.."
-			fi
-
-			local DID_IT=0 FS_TYPE_LINES=
-			FS_TYPE_LINES="$(df --output=fstype,source,target,size --block-size=1 "$DEV_MOUNT_POINT")" && DID_IT=1
-			if [ "$DID_IT" -eq 0 ] || [ -z "$FS_TYPE_LINES" ]
-			then
-				warn "Error: get-device-parents can't determine filesystem type (df failed) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
-				return 1
-			fi
-			local DUMMY
-			read FS_TYPE FS_SOURCE FS_TARGET FS_SIZE DUMMY < <(tail -n +2 <<<"$FS_TYPE_LINES")
-			if [ -z "$FS_TYPE" ]
-			then
-				warn "Error: get-device-parents can't determine filesystem type (can't parse df output) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
-				return 1
-			fi
-		done
-		if [ "$FS_TYPE" = "-" ]
-		then
-			warn "Error: get-device-parents can't determine filesystem type (df doesn't know) for mount point candidate \"$DEV_MOUNT_POINT\" for \"$DEV\""
-			return 1
-		fi
-
-		local DEV_TYPE_INFO="$DEV_FILE_TYPE"
-		[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
-		echo DEV_TYPE "$DEV_TYPE_INFO"
-
-		if [ "$DEV_TYPE" = "f" ]
-		then
-			local FILE_SIZE
-			local DID_IT=0
-			FILE_SIZE=$(stat -c "%s" "$DEV") && DID_IT=1
-			if [ "$DID_IT" -eq 0 ] || [ -z "$FILE_SIZE" ]
-			then
-				warn "Warning: get-device-parents can't determine file \"$DEV\"'s size, omitting"
-			else
-				echo SIZE file "$FILE_SIZE"
-			fi
-		fi
-		echo SIZE file-system "$FS_SIZE"
-
-		case "$FS_TYPE" in
-		btrfs)
-			case "$FS_TARGET" in
-			""|"-"|"none")
-				warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for \"btrfs filesystem show\" call"
-				return 1
-				;;
-			esac
-
-			get-btrfs-parents "$FS_TARGET"
-			return
-			;;
-		zfs)
-			case "$FS_TARGET" in
-			""|"-"|"none")
-				warn "Error: get-device-parents can't determine filesystem mount point (df doesn't know at end of recursion) for \"$DEV\", but need to know for ZFS \"zpool status\" call"
-				return 1
-				;;
-			esac
-
-			get-zfs-parents "$FS_TARGET"
-			return
-			;;
-		*)
-			case "$FS_SOURCE" in
-			""|"-"|"none")
-				warn "Error: Recursing on a directory and/or mount point, but mount source seems to be unknown to df. Can't determine parent device!"
-				return 1
-				;;
-			esac
-
-			echo PARENT "$FS_SOURCE"
-			return 0
-			;;
-		esac
+		# File or directory
+		get-device-parents-fs
+		return
 		;;
 	8,*,b)
 		# SCSI (or, today, about any type of) disk -- search ends here.
-		local OUT_DEV_TYPE="SCSI-alike disk"
-		local DISK_INDEX="$[DEV_MINOR / 16]" PART_NR="$[DEV_MINOR % 16]"
-		local DISK_ALPHA="$(perl -le "print(chr(ord('a') + $DISK_INDEX))")"
-		local DISK_MNEMONIC="sd$DISK_ALPHA" DISK_SUB_MNEMONIC=
-		if [ "$PART_NR" -eq 0 ]
-		then
-			DISK_SUB_MNEMONIC="$DISK_MNEMONIC"
-			[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk $DISK_SUB_MNEMONIC)"
-		else
-			DISK_SUB_MNEMONIC="$DISK_MNEMONIC$PART_NR"
-			[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR ($DISK_SUB_MNEMONIC)"
-		fi
-		echo DEV_TYPE "$OUT_DEV_TYPE"
-
-		local DID_IT= SIZE=
-		# Additionally, determine size of "holding" device;
-		# that is, of which full hard disk this is a partition.
-		local HOLDING_SIZE=
-		if [ "$DISK_SUB_MNEMONIC" != "$DISK_MNEMONIC" ]
-		then
-			local DISK_MNEMONIC_PATH="/dev/$DISK_MNEMONIC"
-			if ! [ -b "$DISK_MNEMONIC_PATH" ]
-			then
-				warn "Warning: get-device-parents can't determine size of holding device as \"$DISK_MNEMONIC_PATH\" does not exist or is not a block special device"
-			else
-				DID_IT=0
-				HOLDING_SIZE=$(blockdev --getsize64 "$DISK_MNEMONIC_PATH") && DID_IT=1
-				if [ "$DID_IT" -eq 0 ] || [ -z "$HOLDING_SIZE" ]
-				then
-					[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of holding device \"$DISK_MNEMONIC_PATH\" in bytes (command blockdev failed)"
-					HOLDING_SIZE=
-				fi
-			fi
-		fi
-		DID_IT=0
-		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
-		then
-			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
-			SIZE=
-		else
-			echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_device=$HOLDING_SIZE}
-		fi
-		[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "$HOLDING_SIZE"
-
-		return 0
+		get-device-parents-scsidisk
+		return
 		;;
 	7,*,b)
 		# loop device
-		local DEV_TYPE_INFO="loop device"
-		[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO, index $DEV_MINOR (loop$DEV_MINOR)"
-		echo DEV_TYPE "$DEV_TYPE_INFO"
-
-		local DID_IT=0 SIZE=
-		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
-		then
-			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
-		else
-			echo SIZE block_device "$SIZE"
-		fi
-
-		local DID_IT=0 LOOP_LINES=
-		LOOP_LINES=$(losetup --list --noheadings --output=back-file "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$LOOP_LINES" ]
-		then
-			warn "Error: get-device-parents couldn't determine loop backing-file of device path \"$DEV\""
-			return 1
-		fi
-
-		echo PARENT "$LOOP_LINES"
-
-		return 0
+		get-device-parents-loop
+		return
 		;;
 	9,*,b)
 		# md-raid (multiple-device RAID)
-
-		local DID_IT=0 MD_LINES=
-		MD_LINES=$(mdadm --query --detail --export "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$MD_LINES" ]
-		then
-			warn "Error: get-device-parents couldn't determine md-raid details of device path \"$DEV\""
-			return 1
-		fi
-
-		local MD_NAME=
-		MD_NAME=$(grep '^MD_NAME=' <<<"$MD_LINES" | sed -n -e 's#^MD_NAME=##p') || MD_NAME=
-
-		local DEV_TYPE_INFO="md-raid"
-		if [ "$VERBOSE" -ge 1 ]
-		then
-			DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks${MD_NAME:+, name $MD_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
-		else
-			DEV_TYPE_INFO="$DEV_TYPE_INFO${MD_NAME:+, name $MD_NAME}"
-		fi
-		echo DEV_TYPE "$DEV_TYPE_INFO"
-
-		local DID_IT=0 SIZE=
-		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
-		then
-			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
-		else
-			echo SIZE block_device "$SIZE"
-		fi
-
-		local MD_LEVEL= MD_LAST_ROLE= MD_LAST_DEV= MD_AVAIL_DEV_SIZE_SEEN=0
-		local KEY VALUE
-		while IFS="=" read KEY VALUE
-		do
-			case "$KEY" in
-			MD_LEVEL)
-				MD_LEVEL="$VALUE"
-				;;
-			MD_DEVICE_*_ROLE)
-				MD_LAST_ROLE="$VALUE"
-				;;
-			MD_DEVICE_*_DEV)
-				MD_LAST_DEV="$VALUE"
-
-				if [ "$MD_AVAIL_DEV_SIZE_SEEN" -eq 0 ]
-				then
-					local MD_LAST_SIZE_MDADM=
-					MD_LAST_SIZE_MDADM=$(mdadm --query --examine "$MD_LAST_DEV" | sed -n -e 's#^ *Avail \+Dev \+Size \+: \+\([0-9]\+\) .*$#\1#p') || MD_LAST_SIZE_MDADM=
-					if [ -n "$MD_LAST_SIZE_MDADM" ]
-					then
-						local MD_LAST_SIZE="$[MD_LAST_SIZE_MDADM * 1024]"
-						echo SIZE "level=$MD_LEVEL,avail_devices_size" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
-						MD_AVAIL_DEV_SIZE_SEEN=1
-					fi
-				fi
-				local MD_LAST_SIZE=
-				MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
-				[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "$MD_LAST_SIZE" ${SIZE:+block_device=$SIZE}
-
-				echo PARENT "$VALUE"
-				;;
-			*)
-				# Ignore, for now.
-				;;
-			esac
-		done <<<"$MD_LINES"
-
-		return 0
+		get-device-parents-md
+		return
 		;;
 	24[0-9],*,b|25[0-4],*,b)  # block major 240-254, "local/experimental use" inside of "reserved for dynamic assignment"
 		local SYS_DEV_SYMLINK="/sys/dev/block/$DEV_MAJOR:$DEV_MINOR"
@@ -622,108 +751,15 @@ get-device-parents() {
 		fi
 
 		# device-mapper (DM)
-		local DM_NAME=
-		DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
-		local DEV_TYPE_INFO="device-mapper"
-		if [ "$VERBOSE" -ge 1 ]
-		then
-			DEV_TYPE_INFO="$DEV_TYPE_INFO (DM${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
-		else
-			DEV_TYPE_INFO="$DEV_TYPE_INFO${DM_NAME:+, name $DM_NAME}"
-		fi
-		echo DEV_TYPE "$DEV_TYPE_INFO"
-
-		local DID_IT=0 SIZE=
-		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
-		then
-			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
-		else
-			echo SIZE block_device "$SIZE"
-		fi
-
-		local DID_IT=0 DEV_TARGETS_SUBCMD="status" DEV_TARGETS_LINES=
-		[ "$VERBOSE" -ge 1 ] && DEV_TARGETS_SUBCMD="table"
-		DEV_TARGETS_LINES=$(dmsetup "$DEV_TARGETS_SUBCMD" "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
-		then
-			warn "Warning: get-device-parents couldn't get list of targets for device \"$DEV\", ignoring"
-		else
-			local START LEN_512 TARGET DUMMY
-			while read START LEN_512 TARGET DUMMY
-			do
-				[ -z "$START" ] && continue
-				local DM_INFO="target=$TARGET"
-				case "$TARGET" in
-				linear)
-					local LINEAR_DEV LINEAR_OFFSET DUMMY2
-					read LINEAR_DEV LINEAR_OFFSET DUMMY2 <<<"$DUMMY"
-					if [ -n "$LINEAR_DEV" ]
-					then
-						DM_INFO="$DM_INFO,dev=$LINEAR_DEV"
-						[ -n "$LINEAR_OFFSET" ] && DM_INFO="$DM_INFO,offset=$LINEAR_OFFSET"
-					fi
-					;;
-				crypt)
-					local CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2
-					read CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2 <<<"$DUMMY"
-					[ -n "$CRYPT_CIPHER" ] && DM_INFO="$DM_INFO,cipher=$CRYPT_CIPHER"
-					if [ -n "$CRYPT_DEV" ]
-					then
-						DM_INFO="$DM_INFO,dev=$CRYPT_DEV"
-						[ -n "$CRYPT_OFFSET" ] && DM_INFO="$DM_INFO,offset=$CRYPT_OFFSET"
-					fi
-					;;
-				*)
-					DM_INFO="$DM_INFO,target_is_unknown"
-					;;
-				esac
-				echo SIZE "$DM_INFO" "$[LEN_512 * 512]" ${SIZE:+block_device=$SIZE}
-			done <<<"$DEV_TARGETS_LINES"
-		fi
-
-		local FAILED=0 DEV_PARENTS_LINE= DEV_PARENTS=
-		DEV_PARENTS_LINE=$(dmsetup deps -o devname "$DEV") || FAILED=1
-		DEV_PARENTS=$(sed -n -e 's#^[0-9]\+ dependencies\t:##; s#^ \+(\([^)]*\))#\1\n#mgp' <<<"$DEV_PARENTS_LINE") || FAILED=1
-		if [ "$FAILED" -ne 0 ]
-		then
-			warn "Error: get-device-parents couldn't determine device-mapper dependencies of device path \"$DEV\""
-			return 1
-		fi
-
-		local PARENT
-		for PARENT in $DEV_PARENTS
-		do
-			if [ -e /dev/mapper/"$PARENT" ]
-			then
-				echo PARENT /dev/mapper/"$PARENT"
-			elif [ -e /dev/"$PARENT" ]
-			then
-				echo PARENT /dev/"$PARENT"
-			else
-				# This will result in error later, but don't just omit a parent.
-				echo PARENT "$PARENT"
-			fi
-		done
-
-		return 0
+		get-device-parents-dm
+		return
 		;;
 	*,*,b)
 		# Fallback -- search ends here, for now. User has to see
 		# for himself whether this device type has any backing storage
 		# of its own.
-		echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
-
-		local DID_IT=0 SIZE=
-		SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
-		if [ "$DID_IT" -eq 0 ] || [ -z "$SIZE" ]
-		then
-			[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
-		else
-			echo SIZE block_device "$SIZE"
-		fi
-
-		return 0
+		get-device-parents-generalblockdev
+		return
 		;;
 	*)
 		warn "Warning: get-device-parents does not know how to determine backing storage of device path \"$DEV\" (dev type \"$DEV_TYPE\", major:minor $DEV_MAJOR:$DEV_MINOR)"
