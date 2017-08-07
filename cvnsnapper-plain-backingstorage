@@ -659,6 +659,27 @@ get-device-parents-md() {
 			MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
 			[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "${MD_LAST_SIZE:-unknown}" ${SIZE:+block_device=$SIZE}
 
+			# Annotate parent device so it can easily be seen
+			# that it is part of a RAID.
+			local NOTE_SIGNATURE= MD_NOTE_STAT=
+			MD_NOTE_STAT=$(stat -L -c "0x%t 0x%T %F" "$MD_LAST_DEV") || MD_NOTE_STAT=
+			local MD_NOTE_STAT_MAJOR_HEX MD_NOTE_STAT_MINOR_HEX MD_NOTE_STAT_FILE_TYPE
+			read MD_NOTE_STAT_MAJOR_HEX MD_NOTE_STAT_MINOR_HEX MD_NOTE_STAT_FILE_TYPE <<<"$MD_NOTE_STAT"
+			if [ "$MD_NOTE_STAT_FILE_TYPE" = "block special file" ]
+			then
+				NOTE_SIGNATURE="$[MD_NOTE_STAT_MAJOR_HEX],$[MD_NOTE_STAT_MINOR_HEX],b"
+			fi
+			local NOTE_MSG=
+			case "$MD_LEVEL" in
+			raid1)
+				NOTE_MSG="RAID1 mirror leg"
+				;;
+			*)
+				NOTE_MSG="${MD_LEVEL^^} part"
+				;;
+			esac
+			[ -n "$NOTE_SIGNATURE" ] && echo NOTE_FOR "$NOTE_SIGNATURE" "$NOTE_MSG"
+
 			echo PARENT "$MD_LAST_DEV"
 			;;
 		*)
