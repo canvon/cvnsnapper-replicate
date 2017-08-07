@@ -835,7 +835,17 @@ get-device-parents-dm() {
 	then
 		local DEV_NEW=
 
-		[ -n "$DM_NAME" ] && DEV_NEW="/dev/mapper/$DM_NAME"
+		local LVM_VG= LVM_LV=
+		if [ -n "$DM_NAME" ]
+		then
+			LVM_VG="${DM_NAME%%-*}"
+			LVM_LV="${DM_NAME#*-}"
+
+			[ -n "$LVM_VG" ] && [ -n "$LVM_LV" ] && DEV_NEW="/dev/$LVM_VG/$LVM_LV"
+			[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
+		fi
+
+		[ -z "$DEV_NEW" ] && [ -n "$DM_NAME" ] && DEV_NEW="/dev/mapper/$DM_NAME"
 		[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
 
 		[ -n "$DEV_NEW" ] && echo REWRITE_DEV "$DEV_NEW"
