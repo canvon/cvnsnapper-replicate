@@ -715,6 +715,21 @@ get-device-parents-md() {
 	local MD_NAME=
 	MD_NAME=$(grep '^MD_NAME=' <<<"$MD_LINES" | sed -n -e 's#^MD_NAME=##p') || MD_NAME=
 
+	if [ "$VERBOSE" -le -1 ]
+	then
+		local DEV_NEW=
+
+		local MD_DEVNAME=
+		MD_DEVNAME=$(grep '^MD_DEVNAME=' <<<"$MD_LINES" | sed -n -e 's#^MD_DEVNAME=##p') || MD_DEVNAME=
+		[ -n "$MD_DEVNAME" ] && DEV_NEW="/dev/md/$MD_DEVNAME"
+		[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
+
+		[ -z "$DEV_NEW" ] && DEV_NEW="/dev/md$DEV_MINOR"
+		[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
+
+		[ -n "$DEV_NEW" ] && echo REWRITE_DEV "$DEV_NEW"
+	fi
+
 	local DEV_TYPE_INFO="md-raid"
 	if [ "$VERBOSE" -ge 1 ]
 	then
