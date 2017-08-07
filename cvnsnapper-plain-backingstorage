@@ -3,6 +3,10 @@
 # cvnsnapper-plain-backingstorage - examine file-system/device backing storage
 # Copyright (C) 2017  Fabian Pietsch <fabian@canvon.de>
 
+VERSION="0.2"
+VERSION_DATE="2017-08-07"
+
+
 #
 # General helper functions
 #
@@ -1287,7 +1291,8 @@ VERBOSE=0
 # Allow sourcing the script for debugging.
 [ -n "$CVNSNAPPER_SOURCE" ] && [ "$CVNSNAPPER_SOURCE" -gt 0 ] && return 0
 
-USAGE="cvnsnapper-plain-backingstorage [{ -q | -v }] { show | show-holders } { MOUNT_POINT | DEVICE_PATH }"
+USAGE_NAME="cvnsnapper-plain-backingstorage"
+USAGE="$USAGE_NAME [{ -q | -v }] { show | show-holders } { MOUNT_POINT | DEVICE_PATH }"
 
 while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
 do
@@ -1297,6 +1302,10 @@ do
 	case "$OPTION" in
 	--help|--usage|-\?)
 		echo "Usage: $USAGE"
+		exit 0
+		;;
+	--version|-V)
+		echo "$USAGE_NAME v$VERSION${VERSION_DATE:+ ($VERSION_DATE)}"
 		exit 0
 		;;
 	-v)
