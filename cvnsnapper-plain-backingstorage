@@ -1172,7 +1172,52 @@ recurse-device-parents() {
 			fi
 		fi
 
-		[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${DEV_PARENTS[@]}"
+		case "$MODE" in
+		show)
+			[ "${#DEV_PARENTS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${DEV_PARENTS[@]}"
+			;;
+		show-holders)
+			if [ -z "$SIGNATURE" ]
+			then
+				warn "Warning: recurse-device-parents didn't get device signature passed back"
+				return 1
+			fi
+
+			local DEV_MAJOR DEV_MINOR DEV_TYPE
+			IFS=$',\n' read DEV_MAJOR DEV_MINOR DEV_TYPE <<<"$SIGNATURE"
+
+			local HOLDERS=()
+			case "$DEV_TYPE" in
+			b)
+				local HOLDER
+				for HOLDER in "/sys/dev/block/$DEV_MAJOR:$DEV_MINOR/holders"/*
+				do
+					local HOLDER_BASE="${HOLDER##*/}"
+					[ -z "$HOLDER_BASE" ] && continue
+					[ "$HOLDER_BASE" = "*" ] && continue
+
+					local HOLDER_DEV="/dev/$HOLDER_BASE"
+					if ! [ -b "$HOLDER_DEV" ]
+					then
+						warn "Warning: Can't determine device path for holder \"$HOLDER_BASE\" on block device major:minor $DEV_MAJOR:$DEV_MINOR, ignoring"
+						continue
+					fi
+
+					HOLDERS+=("$HOLDER_DEV")
+				done
+				;;
+			*)
+				warn "Warning: Holders for device type '$DEV_TYPE' are not supported, yet."
+				return 1
+				;;
+			esac
+
+			[ "${#HOLDERS[*]}" -gt 0 ] && recurse-device-parents "$INDENT    " "${HOLDERS[@]}"
+			;;
+		*)
+			die "Internal error: recurse-device-parents got unrecognized mode \"$MODE\""
+			;;
+		esac
 	done
 
 	return 0
@@ -1218,7 +1263,7 @@ MODE="$1"
 shift
 
 case "$MODE" in
-show)
+show|show-holders)
 	[ "$#" -eq 1 ] || die "Mode-of-operation \"$MODE\" takes exactly one argument, the mount point or block device to operate on"
 
 	START_DEV="$1"
