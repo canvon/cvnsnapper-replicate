@@ -751,14 +751,6 @@ get-device-parents-md() {
 
 			# Annotate parent device so it can easily be seen
 			# that it is part of a RAID.
-			local NOTE_SIGNATURE= MD_NOTE_STAT=
-			MD_NOTE_STAT=$(stat -L -c "0x%t 0x%T %F" "$MD_LAST_DEV") || MD_NOTE_STAT=
-			local MD_NOTE_STAT_MAJOR_HEX MD_NOTE_STAT_MINOR_HEX MD_NOTE_STAT_FILE_TYPE
-			read MD_NOTE_STAT_MAJOR_HEX MD_NOTE_STAT_MINOR_HEX MD_NOTE_STAT_FILE_TYPE <<<"$MD_NOTE_STAT"
-			if [ "$MD_NOTE_STAT_FILE_TYPE" = "block special file" ]
-			then
-				NOTE_SIGNATURE="$[MD_NOTE_STAT_MAJOR_HEX],$[MD_NOTE_STAT_MINOR_HEX],b"
-			fi
 			local NOTE_MSG=
 			case "$MD_LEVEL" in
 			raid1)
@@ -768,6 +760,13 @@ get-device-parents-md() {
 				NOTE_MSG="${MD_LEVEL^^} part"
 				;;
 			esac
+			local NOTE_SIGNATURE= DID_IT=0
+			NOTE_SIGNATURE=$(device-path-to-signature "$MD_LAST_DEV") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$NOTE_SIGNATURE" ]
+			then
+				warn "Warning: get-device-parents-md can't add note to \"$MD_LAST_DEV\" that it's a $NOTE_MSG (device-path-to-signature failed)"
+				NOTE_SIGNATURE=
+			fi
 			[ -n "$NOTE_SIGNATURE" ] && echo NOTE_FOR "$NOTE_SIGNATURE" "$NOTE_MSG"
 
 			echo PARENT "$MD_LAST_DEV"
