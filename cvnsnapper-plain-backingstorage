@@ -1074,6 +1074,19 @@ recurse-device-parents() {
 				[ -z "$VALUE" ] || die "Internal error: get-device-parents returned empty key with value \"$VALUE\""
 				continue
 				;;
+			REWRITE_DEV)
+				local DEV_NEW="$VALUE"
+				if [ -n "$DEV_NEW" ] && [ "$(device-path-to-signature "$DEV_NEW")" != "$(device-path-to-signature "$DEV")" ]
+				then
+					warn "Warning: recurse-device-parents will ignore request to rewrite device path \"$DEV\" to \"$DEV_NEW\" (signatures do not seem to match)"
+					DEV_NEW=
+				fi
+				if [ -n "$DEV_NEW" ]
+				then
+					echo "$INDENT$DEV rewritten as $DEV_NEW"
+					DEV="$DEV_NEW"
+				fi
+				;;
 			SIGNATURE)
 				SIGNATURE="$VALUE"
 				;;
