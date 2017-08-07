@@ -711,7 +711,7 @@ get-device-parents-dm() {
 	fi
 
 	local DID_IT=0 DEV_TARGETS_SUBCMD="status" DEV_TARGETS_LINES=
-	[ "$VERBOSE" -ge 1 ] && DEV_TARGETS_SUBCMD="table"
+	[ "$VERBOSE" -ge 0 ] && DEV_TARGETS_SUBCMD="table"
 	DEV_TARGETS_LINES=$(dmsetup "$DEV_TARGETS_SUBCMD" "$DEV") && DID_IT=1
 	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
 	then
@@ -727,7 +727,7 @@ get-device-parents-dm() {
 			linear)
 				local LINEAR_DEV LINEAR_OFFSET DUMMY2
 				read LINEAR_DEV LINEAR_OFFSET DUMMY2 <<<"$DUMMY"
-				if [ -n "$LINEAR_DEV" ]
+				if [ "$VERBOSE" -ge 1 ] && [ -n "$LINEAR_DEV" ]
 				then
 					DM_INFO="$DM_INFO,dev=$LINEAR_DEV"
 					[ -n "$LINEAR_OFFSET" ] && DM_INFO="$DM_INFO,offset=$LINEAR_OFFSET"
@@ -736,12 +736,18 @@ get-device-parents-dm() {
 			crypt)
 				local CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2
 				read CRYPT_CIPHER CRYPT_KEY CRYPT_DUMMY1 CRYPT_DEV CRYPT_OFFSET DUMMY2 <<<"$DUMMY"
-				[ -n "$CRYPT_CIPHER" ] && DM_INFO="$DM_INFO,cipher=$CRYPT_CIPHER"
+				[ "$VERBOSE" -ge 1 ] && [ -n "$CRYPT_CIPHER" ] && DM_INFO="$DM_INFO,cipher=$CRYPT_CIPHER"
 				if [ -n "$CRYPT_DEV" ]
 				then
-					DM_INFO="$DM_INFO,dev=$CRYPT_DEV"
-					[ -n "$CRYPT_OFFSET" ] && DM_INFO="$DM_INFO,offset=$CRYPT_OFFSET"
+					if [ "$VERBOSE" -ge 1 ]
+					then
+						DM_INFO="$DM_INFO,dev=$CRYPT_DEV"
+						[ -n "$CRYPT_OFFSET" ] && DM_INFO="$DM_INFO,offset=$CRYPT_OFFSET"
+					fi
 
+					# Always pass on note. (Will be
+					# (computed and) visible starting with
+					# verbose level 0 only, though.)
 					echo NOTE_FOR "${CRYPT_DEV/:/,},b" "This stores ciphertext of size $(size-to-some-unit --both --separator=" / " "$LEN")."
 				fi
 				;;
