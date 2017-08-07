@@ -1170,7 +1170,7 @@ VERBOSE=0
 # Allow sourcing the script for debugging.
 [ -n "$CVNSNAPPER_SOURCE" ] && [ "$CVNSNAPPER_SOURCE" -gt 0 ] && return 0
 
-USAGE="cvnsnapper-plain-backingstorage show BTRFS_MOUNT_POINT"
+USAGE="cvnsnapper-plain-backingstorage [{ -q | -v }] show { MOUNT_POINT | DEVICE_PATH }"
 
 while [ "$#" -gt 0 ] && [ "${1:0:1}" = "-" ]
 do
