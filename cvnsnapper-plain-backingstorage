@@ -710,9 +710,8 @@ get-device-parents-dm() {
 		echo SIZE block_device "$SIZE"
 	fi
 
-	local DID_IT=0 DEV_TARGETS_SUBCMD="status" DEV_TARGETS_LINES=
-	[ "$VERBOSE" -ge 0 ] && DEV_TARGETS_SUBCMD="table"
-	DEV_TARGETS_LINES=$(dmsetup "$DEV_TARGETS_SUBCMD" "$DEV") && DID_IT=1
+	local DID_IT=0 DEV_TARGETS_LINES=
+	DEV_TARGETS_LINES=$(dmsetup table "$DEV") && DID_IT=1
 	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_TARGETS_LINES" ]
 	then
 		warn "Warning: get-device-parents couldn't get list of targets for device \"$DEV\", ignoring"
@@ -748,7 +747,12 @@ get-device-parents-dm() {
 					# Always pass on note. (Will be
 					# (computed and) visible starting with
 					# verbose level 0 only, though.)
-					echo NOTE_FOR "${CRYPT_DEV/:/,},b" "This stores ciphertext of size $(size-to-some-unit --both --separator=" / " "$LEN")."
+					local NOTE_MSG=
+					if [ "$VERBOSE" -ge 0 ]
+					then NOTE_MSG="This stores ciphertext of size $(size-to-some-unit --both --separator=" / " "$LEN")."
+					else NOTE_MSG="This stores some ciphertext."
+					fi
+					echo NOTE_FOR "${CRYPT_DEV/:/,},b" "$NOTE_MSG"
 				fi
 				;;
 			*)
@@ -998,7 +1002,14 @@ recurse-device-parents() {
 					done
 				elif [ "$VERBOSE" -le -1 ]
 				then
-					echo "$INDENT$DEV"
+					local NOTE NOTE_STR=
+					for NOTE in "${NOTES[@]}"
+					do
+						[ -n "$NOTE_STR" ] && NOTE_STR="$NOTE_STR | "
+						NOTE_STR="$NOTE_STR$NOTE"
+					done
+
+					echo "$INDENT$DEV${NOTE_STR:+ ($NOTE_STR)}"
 				else
 					echo "$INDENT$DEV: $VALUE"
 
