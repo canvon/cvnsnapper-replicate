@@ -659,7 +659,7 @@ get-device-parents-md() {
 			MD_LAST_SIZE=$(blockdev --getsize64 "$MD_LAST_DEV") || MD_LAST_SIZE=
 			[ -n "$MD_LAST_SIZE" ] && [ "$VERBOSE" -ge 1 ] && echo SIZE "level=$MD_LEVEL,role=$MD_LAST_ROLE,dev=$MD_LAST_DEV" "${MD_LAST_SIZE:-unknown}" ${SIZE:+block_device=$SIZE}
 
-			echo PARENT "$VALUE"
+			echo PARENT "$MD_LAST_DEV"
 			;;
 		*)
 			# Ignore, for now.
