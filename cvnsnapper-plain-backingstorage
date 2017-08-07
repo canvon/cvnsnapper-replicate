@@ -827,7 +827,7 @@ get-device-parents() {
 		get-device-parents-md
 		return
 		;;
-	24[0-9],*,b|25[0-4],*,b)  # block major 240-254, "local/experimental use" inside of "reserved for dynamic assignment"
+	24[0-9],*,b|25[0-4],*,b)  # block major 240-254, "local/experimental use"
 		local SYS_DEV_SYMLINK="/sys/dev/block/$DEV_MAJOR:$DEV_MINOR"
 		if [ -L "$SYS_DEV_SYMLINK" ]
 		then
