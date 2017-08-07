@@ -1121,7 +1121,7 @@ recurse-device-parents() {
 					fi
 					if [ -n "$DEV_NEW" ]
 					then
-						echo "$INDENT$DEV rewritten as $DEV_NEW"
+						[ "$VERBOSE" -ge -1 ] && echo "$INDENT$DEV rewritten as $DEV_NEW"
 						DEV="$DEV_NEW"
 					fi
 				fi
