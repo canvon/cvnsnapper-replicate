@@ -160,6 +160,96 @@ unit-to-size() {
 
 
 #
+# Conversion of device path and signature
+#
+
+device-path-to-signature() {
+	local INPLACE=
+	while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+	do
+		local OPTION="$1"
+		shift
+		case "$OPTION" in
+		--inplace)
+			INPLACE=yes
+			;;
+		*)
+			die "Internal error: device-path-to-signature got invalid option \"$OPTION\""
+			;;
+		esac
+	done
+
+	[ "$#" -eq 1 ] || die "Internal error: device-path-to-signature needs exactly one non-option argument, the device path"
+	[ -z "$INPLACE" ] && local DEV=
+	DEV="$1"
+	shift
+
+	local DID_IT=0 DEV_STAT_LINE=
+	DEV_STAT_LINE=$(stat -L -c "0x%t 0x%T %F" "$DEV") && DID_IT=1
+	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_STAT_LINE" ]
+	then
+		warn "Warning: device-path-to-signature can't get stat information for device path \"$DEV\""
+		return 1
+	fi
+
+	[ -z "$INPLACE" ] && local DEV_MAJOR_HEX DEV_MINOR_HEX DEV_FILE_TYPE
+	if ! read DEV_MAJOR_HEX DEV_MINOR_HEX DEV_FILE_TYPE <<<"$DEV_STAT_LINE"
+	then
+		warn "Warning: device-path-to-signature can't interpret stat information \"$DEV_STAT_LINE\" for device path \"$DEV\""
+		return 1
+	fi
+
+	[ -z "$INPLACE" ] && local DEV_TYPE
+	DEV_TYPE=
+	case "$DEV_FILE_TYPE" in
+	"block special file")
+		DEV_TYPE=b
+		;;
+	"character special file")
+		DEV_TYPE=c
+		;;
+	"directory")
+		DEV_TYPE=d
+		;;
+	"regular file")
+		DEV_TYPE=f
+		;;
+	*)
+		warn "Warning: device-path-to-signature was given a non-device \"$DEV\" of file type \"$DEV_FILE_TYPE\""
+		return 1
+		;;
+	esac
+
+	[ -n "$DEV_TYPE" ] || die "Internal error: device-path-to-signature couldn't determine device type for device path \"$DEV\""
+
+	[ -z "$INPLACE" ] && local DEV_MAJOR
+	DEV_MAJOR=
+	if [ -n "$DEV_MAJOR_HEX" ]
+	then
+		DEV_MAJOR="$[DEV_MAJOR_HEX]"
+		[ -n "$DEV_MAJOR" ] || warn "Internal error: Converting hex \"$DEV_MAJOR_HEX\" to decimal failed"
+	fi
+	[ -n "$DEV_MAJOR" ] || DEV_MAJOR="unknown"
+
+	[ -z "$INPLACE" ] && local DEV_MINOR
+	DEV_MINOR=
+	if [ -n "$DEV_MINOR_HEX" ]
+	then
+		DEV_MINOR="$[DEV_MINOR_HEX]"
+		[ -n "$DEV_MINOR" ] || warn "Internal error: Converting hex \"$DEV_MINOR_HEX\" to decimal failed"
+	fi
+	[ -n "$DEV_MINOR" ] || DEV_MINOR="unknown"
+
+	[ -z "$INPLACE" ] && local SIGNATURE
+	SIGNATURE="$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE"
+
+	[ -z "$INPLACE" ] && echo "$SIGNATURE"
+
+	return 0
+}
+
+
+#
 # Per-file-system type helpers
 #
 
@@ -834,60 +924,17 @@ get-device-parents() {
 	local DEV="$1"
 	shift
 
-	local DID_IT=0 DEV_STAT_LINE=
-	DEV_STAT_LINE=$(stat -L -c "0x%t 0x%T %F" "$DEV") && DID_IT=1
-	if [ "$DID_IT" -eq 0 ] || [ -z "$DEV_STAT_LINE" ]
+	local DEV_MAJOR_HEX DEV_MINOR_HEX DEV_FILE_TYPE
+	local DEV_TYPE DEV_MAJOR DEV_MINOR
+	local SIGNATURE
+	if ! device-path-to-signature --inplace "$DEV"
 	then
-		warn "Warning: get-device-parents can't get stat information for device path \"$DEV\""
+		warn "Warning: get-device-parents can't get signature for device path \"$DEV\""
 		return 1
 	fi
 
-	if ! read DEV_MAJOR_HEX DEV_MINOR_HEX DEV_FILE_TYPE <<<"$DEV_STAT_LINE"
-	then
-		warn "Warning: get-device-parents can't interpret stat information \"$DEV_STAT_LINE\" for device path \"$DEV\""
-		return 1
-	fi
-
-	DEV_TYPE=
-	case "$DEV_FILE_TYPE" in
-	"block special file")
-		DEV_TYPE=b
-		;;
-	"character special file")
-		DEV_TYPE=c
-		;;
-	"directory")
-		DEV_TYPE=d
-		;;
-	"regular file")
-		DEV_TYPE=f
-		;;
-	*)
-		warn "Warning: get-device-parents was given a non-device \"$DEV\" of file type \"$DEV_FILE_TYPE\""
-		return 1
-		;;
-	esac
-
-	[ -n "$DEV_TYPE" ] || die "Internal error: get-device-parents couldn't determine device type for device path \"$DEV\""
-
-	local DEV_MAJOR=
-	if [ -n "$DEV_MAJOR_HEX" ]
-	then
-		DEV_MAJOR="$[DEV_MAJOR_HEX]"
-		[ -n "$DEV_MAJOR" ] || warn "Internal error: Converting hex \"$DEV_MAJOR_HEX\" to decimal failed"
-	fi
-	[ -n "$DEV_MAJOR" ] || DEV_MAJOR="unknown"
-
-	local DEV_MINOR=
-	if [ -n "$DEV_MINOR_HEX" ]
-	then
-		DEV_MINOR="$[DEV_MINOR_HEX]"
-		[ -n "$DEV_MINOR" ] || warn "Internal error: Converting hex \"$DEV_MINOR_HEX\" to decimal failed"
-	fi
-	[ -n "$DEV_MINOR" ] || DEV_MINOR="unknown"
-
-	local SIGNATURE="$DEV_MAJOR,$DEV_MINOR,$DEV_TYPE"
 	echo SIGNATURE "$SIGNATURE"
+
 	case "$SIGNATURE" in
 	*,*,[fd])
 		# File or directory
