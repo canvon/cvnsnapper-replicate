@@ -646,22 +646,22 @@ get-device-parents-scsidisk() {
 	echo DEV_TYPE "$OUT_DEV_TYPE"
 
 	local DID_IT= SIZE=
-	# Additionally, determine size of "holding" device;
+	# Additionally, determine size of "complete disk" device;
 	# that is, of which full hard disk this is a partition.
-	local HOLDING_SIZE=
+	local COMPLETE_DISK_SIZE=
 	if [ "$DISK_SUB_MNEMONIC" != "$DISK_MNEMONIC" ]
 	then
 		local DISK_MNEMONIC_PATH="/dev/$DISK_MNEMONIC"
 		if ! [ -b "$DISK_MNEMONIC_PATH" ]
 		then
-			warn "Warning: get-device-parents can't determine size of holding device as \"$DISK_MNEMONIC_PATH\" does not exist or is not a block special device"
+			warn "Warning: get-device-parents can't determine size of complete disk device as \"$DISK_MNEMONIC_PATH\" does not exist or is not a block special device"
 		else
 			DID_IT=0
-			HOLDING_SIZE=$(blockdev --getsize64 "$DISK_MNEMONIC_PATH") && DID_IT=1
-			if [ "$DID_IT" -eq 0 ] || [ -z "$HOLDING_SIZE" ]
+			COMPLETE_DISK_SIZE=$(blockdev --getsize64 "$DISK_MNEMONIC_PATH") && DID_IT=1
+			if [ "$DID_IT" -eq 0 ] || [ -z "$COMPLETE_DISK_SIZE" ]
 			then
-				[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of holding device \"$DISK_MNEMONIC_PATH\" in bytes (command blockdev failed)"
-				HOLDING_SIZE=
+				[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of complete disk device \"$DISK_MNEMONIC_PATH\" in bytes (command blockdev failed)"
+				COMPLETE_DISK_SIZE=
 			fi
 		fi
 	fi
@@ -672,9 +672,9 @@ get-device-parents-scsidisk() {
 		[ "$VERBOSE" -gt -1 ] && warn "Warning: get-device-parents can't determine size of device \"$DEV\" in bytes (command blockdev failed)"
 		SIZE=
 	else
-		echo SIZE block_device "$SIZE" ${HOLDING_SIZE:+holding_device=$HOLDING_SIZE}
+		echo SIZE block_device "$SIZE" ${COMPLETE_DISK_SIZE:+complete_disk=$COMPLETE_DISK_SIZE}
 	fi
-	[ -n "$HOLDING_SIZE" ] && echo SIZE holding_device "${HOLDING_SIZE:-unknown}"
+	[ -n "$COMPLETE_DISK_SIZE" ] && echo SIZE complete_disk "${COMPLETE_DISK_SIZE:-unknown}"
 
 	return 0
 }
