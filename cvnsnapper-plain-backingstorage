@@ -589,7 +589,25 @@ get-device-parents-md() {
 	local DEV_TYPE_INFO="md-raid"
 	if [ "$VERBOSE" -ge 1 ]
 	then
-		DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks${MD_NAME:+, name $MD_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		local MD_DEV="/dev/md$DEV_MINOR"
+		[ -b "$MD_DEV" ] || MD_DEV=
+		if [ -n "$MD_DEV" ]
+		then
+			local MD_STAT=
+			MD_STAT=$(stat -L -c "0x%t 0x%T %F" "$MD_DEV") || MD_STAT=
+			local MD_STAT_MAJOR_HEX MD_STAT_MINOR_HEX MD_STAT_FILE_TYPE
+			read MD_STAT_MAJOR_HEX MD_STAT_MINOR_HEX MD_STAT_FILE_TYPE <<<"$MD_STAT"
+			if [ "$MD_STAT_FILE_TYPE" != "block special file" ]
+			then
+				MD_DEV=
+			else
+				[ "$[MD_STAT_MAJOR_HEX]" -eq "$DEV_MAJOR" ] || MD_DEV=
+				[ "$[MD_STAT_MINOR_HEX]" -eq "$DEV_MINOR" ] || MD_DEV=
+			fi
+		fi
+		local MD_DEV_HUMAN="md unknown"
+		[ -n "$MD_DEV" ] && MD_DEV_HUMAN="${MD_DEV#/dev/}"
+		DEV_TYPE_INFO="$DEV_TYPE_INFO (multiple-disks $MD_DEV_HUMAN${MD_NAME:+, name $MD_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
 	else
 		DEV_TYPE_INFO="$DEV_TYPE_INFO${MD_NAME:+, name $MD_NAME}"
 	fi
