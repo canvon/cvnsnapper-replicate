@@ -503,10 +503,10 @@ get-device-parents-scsidisk() {
 	if [ "$PART_NR" -eq 0 ]
 	then
 		DISK_SUB_MNEMONIC="$DISK_MNEMONIC"
-		[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA (whole disk $DISK_SUB_MNEMONIC)"
+		[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE (disk index $DISK_INDEX aka alpha $DISK_ALPHA -- whole disk $DISK_SUB_MNEMONIC, major:minor $DEV_MAJOR:$DEV_MINOR)"
 	else
 		DISK_SUB_MNEMONIC="$DISK_MNEMONIC$PART_NR"
-		[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE, disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR ($DISK_SUB_MNEMONIC)"
+		[ "$VERBOSE" -ge 1 ] && OUT_DEV_TYPE="$OUT_DEV_TYPE (disk index $DISK_INDEX aka alpha $DISK_ALPHA, partition $PART_NR -- $DISK_SUB_MNEMONIC, major:minor $DEV_MAJOR:$DEV_MINOR)"
 	fi
 	echo DEV_TYPE "$OUT_DEV_TYPE"
 
@@ -547,7 +547,7 @@ get-device-parents-scsidisk() {
 get-device-parents-loop() {
 	# loop device
 	local DEV_TYPE_INFO="loop device"
-	[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO, index $DEV_MINOR (loop$DEV_MINOR)"
+	[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO (index $DEV_MINOR -- loop$DEV_MINOR, major:minor $DEV_MAJOR:$DEV_MINOR)"
 	echo DEV_TYPE "$DEV_TYPE_INFO"
 
 	local DID_IT=0 SIZE=
@@ -753,6 +753,8 @@ get-device-parents-dm() {
 
 get-device-parents-generalblockdev() {
 	# general block special device
+	# (Always pass on major:minor, as the device is likely unknown,
+	# but with the additional data, the admin might still know what it is.)
 	echo DEV_TYPE "general block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
 
 	local DID_IT=0 SIZE=
