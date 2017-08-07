@@ -735,7 +735,7 @@ get-device-parents-dm() {
 
 get-device-parents-generalblockdev() {
 	# general block special device
-	echo DEV_TYPE "unknown block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
+	echo DEV_TYPE "general block special (major:minor $DEV_MAJOR:$DEV_MINOR)"
 
 	local DID_IT=0 SIZE=
 	SIZE=$(blockdev --getsize64 "$DEV") && DID_IT=1
