@@ -560,6 +560,8 @@ get-device-parents-fs() {
 		return 1
 	fi
 
+	[ "$VERBOSE" -le -1 ] && echo REWRITE_DEV "$FS_TARGET"
+
 	local DEV_TYPE_INFO="$DEV_FILE_TYPE"
 	if [ "$VERBOSE" -ge 1 ]
 	then
