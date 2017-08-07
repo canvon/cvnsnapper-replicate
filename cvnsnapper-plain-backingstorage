@@ -446,6 +446,19 @@ get-btrfs-parents() {
 				return 1
 			fi
 			echo SIZE "devid=$BTRFS_CUR_DEV_ID,path=$BTRFS_CUR_DEV_PATH" "$(unit-to-size "$BTRFS_CUR_DEV_SIZE")" ${FS_SIZE:+file-system=$FS_SIZE}
+
+			if [ "$BTRFS_DEV_COUNT" -gt 1 ]
+			then
+				local NOTE_MSG="part of multi-device btrfs"
+				local NOTE_SIGNATURE= DID_IT=0
+				NOTE_SIGNATURE=$(device-path-to-signature "$BTRFS_CUR_DEV_PATH") && DID_IT=1
+				if [ "$DID_IT" -eq 0 ] || [ -z "$NOTE_SIGNATURE" ]
+				then
+					warn "Warning: get-btrfs-parents can't add note to \"$BTRFS_CUR_DEV_PATH\" that it's $NOTE_MSG (device-path-to-signature failed)"
+					NOTE_SIGNATURE=
+				fi
+				[ -n "$NOTE_SIGNATURE" ] && echo NOTE_FOR "$NOTE_SIGNATURE" "$NOTE_MSG"
+			fi
 			;;
 		"")
 			# Ignore empty line.
