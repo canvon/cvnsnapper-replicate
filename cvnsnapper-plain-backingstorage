@@ -440,7 +440,15 @@ get-device-parents-fs() {
 	fi
 
 	local DEV_TYPE_INFO="$DEV_FILE_TYPE"
-	[ "$VERBOSE" -ge 1 ] && DEV_TYPE_INFO="$DEV_TYPE_INFO on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
+	if [ "$VERBOSE" -ge 1 ]
+	then
+		DEV_TYPE_INFO="$DEV_TYPE_INFO on filesystem type \"$FS_TYPE\" mounted from \"$FS_SOURCE\" on mount point \"$FS_TARGET\""
+	else
+		# Always pass on mount point, as all further results
+		# will be wrong if this is not what the user intended.
+		# This won't help users of -q, though.
+		DEV_TYPE_INFO="$DEV_TYPE_INFO, on \"$FS_TARGET\""
+	fi
 	echo DEV_TYPE "$DEV_TYPE_INFO"
 
 	if [ "$DEV_TYPE" = "f" ]
