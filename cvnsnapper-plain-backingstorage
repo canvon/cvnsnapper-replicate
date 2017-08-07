@@ -343,6 +343,7 @@ get-zfs-parents() {
 			# Now, potentially output size information with the full group path!
 			if [ -n "$POOL_DEVICE" ] && [ "$VERBOSE" -ge 1 ]
 			then
+				local NOTE_MSG=
 				local POOL_GROUP_STR= POOL_GROUP I=0
 				for POOL_GROUP in "${POOL_GROUP_PATH[@]}"
 				do
@@ -351,8 +352,25 @@ get-zfs-parents() {
 
 					# Build up the pool group string.
 					POOL_GROUP_STR="$POOL_GROUP_STR,group=$POOL_GROUP"
+
+					# Overwrite note message each full round.
+					# Only the next-to-last one should stay,
+					# as it should give the vdev type. (?)
+					NOTE_MSG="$POOL_GROUP"
 				done
 				echo SIZE "zpool=$ZPOOL$POOL_GROUP_STR,dev=$POOL_DEVICE" "${POOL_DEVICE_SIZE:-unknown}" ${SIZE_ZPOOL:+"zpool=$SIZE_ZPOOL"}
+				if [ -n "$NOTE_MSG" ]
+				then
+					NOTE_MSG="ZFS $NOTE_MSG part"
+					local NOTE_SIGNATURE= DID_IT=0
+					NOTE_SIGNATURE=$(device-path-to-signature "$POOL_DEVICE") && DID_IT=1
+					if [ "$DID_IT" -eq 0 ] || [ -z "$NOTE_SIGNATURE" ]
+					then
+						warn "Warning: get-zfs-parents can't add note to \"$POOL_DEVICE\" that it's a $NOTE_MSG (device-path-to-signature failed)"
+						NOTE_SIGNATURE=
+					fi
+					[ -n "$NOTE_SIGNATURE" ] && echo NOTE_FOR "$NOTE_SIGNATURE" "$NOTE_MSG"
+				fi
 			fi
 		fi
 	done < <(sed -n -e '/^\s*config:/,/^[^\t]/ { /^[^\t]/d; s/^\t//; 1,/NAME.\+STATE.\+READ.\+WRITE.\+CKSUM/d; s/\(\S\)\s.*/\1/; p; }' <<<"$ZPOOL_STATUS")
