@@ -837,19 +837,27 @@ get-device-parents-dm() {
 	local DM_NAME=
 	DM_NAME=$(dmsetup info --columns --noheadings -o name -j "$DEV_MAJOR" -m "$DEV_MINOR") || DM_NAME=
 
+	local LVM_VG= LVM_LV= LVM_DEV=
+	if [ -n "$DM_NAME" ]
+	then
+		LVM_VG="${DM_NAME%%-*}"
+		LVM_LV="${DM_NAME#*-}"
+
+		[ -n "$LVM_VG" ] && [ -n "$LVM_LV" ] && LVM_DEV="/dev/$LVM_VG/$LVM_LV"
+		if [ -z "$LVM_VG" ] || [ -z "$LVM_LV" ] || ! [ -b "$LVM_DEV" ]
+		then
+			LVM_VG=
+			LVM_LV=
+			LVM_DEV=
+		fi
+	fi
+
 	if [ "$VERBOSE" -le -1 ]
 	then
 		local DEV_NEW=
 
-		local LVM_VG= LVM_LV=
-		if [ -n "$DM_NAME" ]
-		then
-			LVM_VG="${DM_NAME%%-*}"
-			LVM_LV="${DM_NAME#*-}"
-
-			[ -n "$LVM_VG" ] && [ -n "$LVM_LV" ] && DEV_NEW="/dev/$LVM_VG/$LVM_LV"
-			[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
-		fi
+		[ -z "$DEV_NEW" ] && [ -n "$LVM_DEV" ] && DEV_NEW="$LVM_DEV"
+		[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
 
 		[ -z "$DEV_NEW" ] && [ -n "$DM_NAME" ] && DEV_NEW="/dev/mapper/$DM_NAME"
 		[ -n "$DEV_NEW" ] && ! [ -b "$DEV_NEW" ] && DEV_NEW=
@@ -909,10 +917,15 @@ get-device-parents-dm() {
 			linear)
 				local LINEAR_DEV LINEAR_OFFSET DUMMY2
 				read LINEAR_DEV LINEAR_OFFSET DUMMY2 <<<"$DUMMY"
-				if [ "$VERBOSE" -ge 1 ] && [ -n "$LINEAR_DEV" ]
+				if [ -n "$LINEAR_DEV" ]
 				then
-					DM_INFO="$DM_INFO,dev=$LINEAR_DEV"
-					[ -n "$LINEAR_OFFSET" ] && DM_INFO="$DM_INFO,offset=$LINEAR_OFFSET"
+					if [ "$VERBOSE" -ge 1 ]
+					then
+						DM_INFO="$DM_INFO,dev=$LINEAR_DEV"
+						[ -n "$LINEAR_OFFSET" ] && DM_INFO="$DM_INFO,offset=$LINEAR_OFFSET"
+					fi
+
+					[ -n "$LVM_DEV" ] && echo NOTE_FOR "${LINEAR_DEV/:/,},b" "part of LVM"
 				fi
 				;;
 			crypt)
@@ -926,6 +939,8 @@ get-device-parents-dm() {
 						DM_INFO="$DM_INFO,dev=$CRYPT_DEV"
 						[ -n "$CRYPT_OFFSET" ] && DM_INFO="$DM_INFO,offset=$CRYPT_OFFSET"
 					fi
+
+					[ -n "$LVM_DEV" ] && echo NOTE_FOR "${CRYPT_DEV/:/,},b" "part of LVM"
 
 					# Always pass on note. (Will be
 					# (computed and) visible starting with
