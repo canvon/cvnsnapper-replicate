@@ -651,7 +651,25 @@ get-device-parents-dm() {
 	local DEV_TYPE_INFO="device-mapper"
 	if [ "$VERBOSE" -ge 1 ]
 	then
-		DEV_TYPE_INFO="$DEV_TYPE_INFO (DM${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
+		local DM_DEV="/dev/dm-$DEV_MINOR"
+		[ -b "$DM_DEV" ] || DM_DEV=
+		if [ -n "$DM_DEV" ]
+		then
+			local DM_STAT=
+			DM_STAT=$(stat -L -c "0x%t 0x%T %F" "$DM_DEV") || DM_STAT=
+			local DM_STAT_MAJOR_HEX DM_STAT_MINOR_HEX DM_STAT_FILE_TYPE
+			read DM_STAT_MAJOR_HEX DM_STAT_MINOR_HEX DM_STAT_FILE_TYPE <<<"$DM_STAT"
+			if [ "$DM_STAT_FILE_TYPE" != "block special file" ]
+			then
+				DM_DEV=
+			else
+				[ "$[DM_STAT_MAJOR_HEX]" -eq "$DEV_MAJOR" ] || DM_DEV=
+				[ "$[DM_STAT_MINOR_HEX]" -eq "$DEV_MINOR" ] || DM_DEV=
+			fi
+		fi
+		local DM_DEV_HUMAN="dm unknown"
+		[ -n "$DM_DEV" ] && DM_DEV_HUMAN="${DM_DEV#/dev/}"
+		DEV_TYPE_INFO="$DEV_TYPE_INFO ($DM_DEV_HUMAN${DM_NAME:+, name $DM_NAME}, major:minor $DEV_MAJOR:$DEV_MINOR)"
 	else
 		DEV_TYPE_INFO="$DEV_TYPE_INFO${DM_NAME:+, name $DM_NAME}"
 	fi
