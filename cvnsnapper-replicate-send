@@ -15,6 +15,7 @@ die() {
 USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
 
 MODE="sendfiles"
+SKIP_CLEANUPS="timeline"
 
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
 do
@@ -27,10 +28,12 @@ do
 	--files)
 		MODE="sendfiles"
 		shift
+		SKIP_CLEANUPS="timeline"
 		;;
 	--receive)
 		MODE="sendreceive"
 		shift
+		SKIP_CLEANUPS=
 		;;
 	*)
 		die "Invalid option \"$1\""
@@ -117,11 +120,17 @@ do
 	SNAPSHOT_DESCRIPTION=$(sed -n -e 's#^.*<description>\([^<]*\)</description>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER description: sed failed"; }
 
 	SNAPSHOT_CLEANUP=$(sed -n -e 's#^.*<cleanup>\([^<]*\)</cleanup>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER cleanup policy: sed failed"; }
-	if [ "$SNAPSHOT_CLEANUP" = "timeline" ]
-	then
-		echo "(Skipping due to cleanup policy \"$SNAPSHOT_CLEANUP\": Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\")"
-		continue
-	fi
+	SKIP=0
+	for SKIP_CLEANUP in $SKIP_CLEANUPS
+	do
+		if [ "$SNAPSHOT_CLEANUP" = "$SKIP_CLEANUP" ]
+		then
+			echo "(Skipping due to cleanup policy \"$SNAPSHOT_CLEANUP\": Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\")"
+			SKIP=1
+			break
+		fi
+	done
+	[ "$SKIP" -eq 0 ] || continue
 
 	echo "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\""
 
