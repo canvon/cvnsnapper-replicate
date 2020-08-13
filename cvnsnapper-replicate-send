@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 warn() {
 	echo "${0##*/}: $*" >&2
 }
@@ -12,6 +14,8 @@ die() {
 
 USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
 
+MODE="sendfiles"
+
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
 do
 	case "$1" in
@@ -19,6 +23,14 @@ do
 		shift
 		echo "$USAGE"
 		exit 0
+		;;
+	--files)
+		MODE="sendfiles"
+		shift
+		;;
+	--receive)
+		MODE="sendreceive"
+		shift
 		;;
 	*)
 		die "Invalid option \"$1\""
@@ -38,6 +50,35 @@ LAST_SNAPSHOT_NUMBER_ARG=
 
 LAST_SNAPSHOT_NUMBER_ARG_REACHED=0
 LAST_SNAPSHOT_NUMBER=
+
+if [ "$MODE" = "sendreceive" ]
+then
+	[ -d "$OUTPUT_PREFIX" ] || die "In mode $MODE, output prefix must be a directory"
+	[ "$(stat -c '%i' "$OUTPUT_PREFIX")" -eq 256 ] || die "In mode $MODE, output prefix must be a subvolume"
+
+	OUTPUT_SNAPSHOTS="$OUTPUT_PREFIX/.snapshots"
+	[ -d "$OUTPUT_SNAPSHOTS" ] || die "Output prefix snapper .snapshots subvolume not found at \"$OUTPUT_SNAPSHOTS\""
+	[ "$(stat -c '%i' "$OUTPUT_SNAPSHOTS")" -eq 256 ] || die "Output prefix snapper .snapshots subvolume not a subvolume at \"$OUTPUT_SNAPSHOTS\""
+
+	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
+	then
+		LAST_SNAPSHOT_NUMBER_ARG=$(cd "$OUTPUT_SNAPSHOTS" && ls -1d [1-9]* | sort -n)
+	fi
+
+	if [ -n "$LAST_SNAPSHOT_NUMBER_ARG" ]
+	then
+		# Sanity check.
+		CHECK_TEXT="connection between last output prefix snapshot and corresponding input snapshot"
+
+		OUT_RECEIVED_UUID="$(btrfs subvolume show "$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*Received UUID:\s*\([-0-9a-f]*\)$/\1/p')"
+		[ -n "$OUT_RECEIVED_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get last output prefix snapshot's received UUID"
+
+		IN_UUID="$(btrfs subvolume show "$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/p')"
+		[ -n "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot's UUID"
+
+		[ "$OUT_RECEIVED_UUID" = "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Received UUID \"$OUT_RECEIVED_UUID\" doesn't match UUID \"$IN_UUID\""
+	fi
+fi
 
 while read SNAPSHOT_NUMBER
 do
@@ -96,20 +137,46 @@ do
 	then
 		echo -n "Full send: "
 
-		OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}-full.btrfs_send"
-		[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
+		case "$MODE" in
+		sendfiles)
+			OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}-full.btrfs_send"
+			[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
 
-		btrfs send -f "$OUTPUT_FILE" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing full send of snapshot number $SNAPSHOT_NUMBER: btrfs send failed"; }
+			btrfs send -f "$OUTPUT_FILE" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing full send of snapshot number $SNAPSHOT_NUMBER: btrfs send failed"; }
+			;;
+		sendreceive)
+			OUTPUT_SNAPSHOT_DIR="$OUTPUT_SNAPSHOTS/$SNAPSHOT_NUMBER"
+			mkdir "$OUTPUT_SNAPSHOT_DIR" || { echo "(error)"; die "Couldn't create output snapper .snapshots sub-directory \"$OUTPUT_SNAPSHOT_DIR\""; }
+			btrfs send "$INPUT_SNAPSHOT" | btrfs receive "$OUTPUT_SNAPSHOT_DIR" || { CODE="$?"; echo "(error)"; die "While doing full send-receive of snapshot number $SNAPSHOT_NUMBER: btrfs send|receive pipeline failed (with code $CODE)"; }
+			;;
+		*)
+			echo "(error)"
+			die "Unsupported mode-of-operation \"$MODE\""
+			;;
+		esac
 	else
 		INPUT_PARENT_SNAPSHOT="$LAST_SNAPSHOT_NUMBER/snapshot"
 		[ -d "$INPUT_PARENT_SNAPSHOT" ] || die "No parent snapshot under last snapshot number $LAST_SNAPSHOT_NUMBER"
 
 		echo -n "Incremental send with parent $LAST_SNAPSHOT_NUMBER: "
 
-		OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}.btrfs_send"
-		[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
+		case "$MODE" in
+		sendfiles)
+			OUTPUT_FILE="${OUTPUT_PREFIX}-${SNAPSHOT_NUMBER}.btrfs_send"
+			[ -e "$OUTPUT_FILE" ] && { echo "(error)"; die "Output file \"$OUTPUT_FILE\" already exists"; }
 
-		btrfs send -f "$OUTPUT_FILE" -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing incremental send of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send failed"; }
+			btrfs send -f "$OUTPUT_FILE" -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" || { echo "(error)"; die "While doing incremental send of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send failed"; }
+			;;
+		sendreceive)
+			OUTPUT_SNAPSHOT_DIR="$OUTPUT_SNAPSHOTS/$SNAPSHOT_NUMBER"
+			mkdir "$OUTPUT_SNAPSHOT_DIR" || { echo "(error)"; die "Couldn't create output snapper .snapshots sub-directory \"$OUTPUT_SNAPSHOT_DIR\""; }
+			btrfs send -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" | btrfs receive "$OUTPUT_SNAPSHOT_DIR" || { CODE="$?"; echo "(error)"; die "While doing incremental send-receive of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send|receive pipeline failed (with code $CODE)"; }
+			;;
+		*)
+			echo "(error)"
+			die "Unsupported mode-of-operation \"$MODE\""
+			;;
+		esac
 	fi
 	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
