@@ -157,6 +157,11 @@ do
 			OUTPUT_SNAPSHOT_DIR="$OUTPUT_SNAPSHOTS/$SNAPSHOT_NUMBER"
 			mkdir "$OUTPUT_SNAPSHOT_DIR" || { echo "(error)"; die "Couldn't create output snapper .snapshots sub-directory \"$OUTPUT_SNAPSHOT_DIR\""; }
 			btrfs send "$INPUT_SNAPSHOT" | btrfs receive "$OUTPUT_SNAPSHOT_DIR" || { CODE="$?"; echo "(error)"; die "While doing full send-receive of snapshot number $SNAPSHOT_NUMBER: btrfs send|receive pipeline failed (with code $CODE)"; }
+			# After successful receive, transfer snapper meta-data,
+			# as well, to give a snapper for the destination
+			# the chance to list and handle the snapshot.
+			# (Note that line has already been ended by btrfs output.)
+			cp -a "$SNAPSHOT_INFO" "$OUTPUT_SNAPSHOT_DIR/" || die "Copying snapshot info \"$SNAPSHOT_INFO\" to output snapshot directory \"$OUTPUT_SNAPSHOT_DIR\" failed (with code $?)"
 			;;
 		*)
 			echo "(error)"
@@ -180,6 +185,7 @@ do
 			OUTPUT_SNAPSHOT_DIR="$OUTPUT_SNAPSHOTS/$SNAPSHOT_NUMBER"
 			mkdir "$OUTPUT_SNAPSHOT_DIR" || { echo "(error)"; die "Couldn't create output snapper .snapshots sub-directory \"$OUTPUT_SNAPSHOT_DIR\""; }
 			btrfs send -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" | btrfs receive "$OUTPUT_SNAPSHOT_DIR" || { CODE="$?"; echo "(error)"; die "While doing incremental send-receive of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send|receive pipeline failed (with code $CODE)"; }
+			cp -a "$SNAPSHOT_INFO" "$OUTPUT_SNAPSHOT_DIR/" || die "Copying snapshot info \"$SNAPSHOT_INFO\" to output snapshot directory \"$OUTPUT_SNAPSHOT_DIR\" failed (with code $?)"
 			;;
 		*)
 			echo "(error)"
