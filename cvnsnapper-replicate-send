@@ -196,4 +196,29 @@ do
 	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
 
+# Post-operation.
+if [ "$MODE" = "sendreceive" ]
+then
+	# Update the "main" subvol with the last snapshot,
+	# then hang the .snapshots subvol into there.
+	echo "Post-operation: Update output main subvolume, at \"$OUTPUT_PREFIX\" ..."
+
+	[ -n "$LAST_SNAPSHOT_NUMBER" ] || die "Post-operation: Can't update main subvolume as there was no last snapshot number!"
+	[ "$(btrfs property get "$OUTPUT_PREFIX" ro)" = "ro=true" ] || die "Post-operation: Can't update main subvolume as it was not set read-only, before"
+	btrfs property set "$OUTPUT_PREFIX" ro false || die "Post-operation: Couldn't update main subvolume: Couldn't set read-write"
+
+	btrfs subvolume snapshot "$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER" "$OUTPUT_PREFIX.new" || die "Post-operation: Couldn't update main subvolume: Making snapshot of last snapshot $LAST_SNAPSHOT_NUMBER failed"
+	OUT_SNAPS_DIR="$OUTPUT_PREFIX.new/.snapshots"
+	if [ -d "$OUT_SNAPS_DIR" ]
+	then
+		rmdir "$OUT_SNAPS_DIR" || die "Post-operation: Couldn't update main subvolume: Removing empty subvolume-placeholder directory \"$OUT_SNAPS_DIR\" failed"
+	fi
+	mv "$OUTPUT_PREFIX/.snapshots" "$OUTPUT_PREFIX.new/" || die "Post-operation: Couldn't update main subvolume: Hanging snapper .snapshots subvolume into snapshot of last snapshot failed"
+	ATTENTION="ATTENTION: snapper .snapshots subvolume has already been hung into \"$OUTPUT_PREFIX.new/\"!"
+
+	btrfs subvolume delete "$OUTPUT_PREFIX" || die "Post-operation: Couldn't update main subvolume: Deleting previous version failed. $ATTENTION"
+	mv "$OUTPUT_PREFIX.new" "$OUTPUT_PREFIX" || die "Post-operation: Couldn't update main subvolume: Placing new version at old name failed. $ATTENTION"
+	btrfs property set "$OUTPUT_PREFIX" ro true || die "Post-operation: Couldn't update main subvolume: Couldn't set read-only; but would be necessary for next $0 run"
+fi
+
 exit 0
