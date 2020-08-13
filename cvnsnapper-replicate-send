@@ -217,7 +217,7 @@ then
 	[ "$(btrfs property get "$OUTPUT_PREFIX" ro)" = "ro=true" ] || die "Post-operation: Can't update main subvolume as it was not set read-only, before"
 	btrfs property set "$OUTPUT_PREFIX" ro false || die "Post-operation: Couldn't update main subvolume: Couldn't set read-write"
 
-	btrfs subvolume snapshot "$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER" "$OUTPUT_PREFIX.new" || die "Post-operation: Couldn't update main subvolume: Making snapshot of last snapshot $LAST_SNAPSHOT_NUMBER failed"
+	btrfs subvolume snapshot "$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER/snapshot" "$OUTPUT_PREFIX.new" || die "Post-operation: Couldn't update main subvolume: Making snapshot of last snapshot $LAST_SNAPSHOT_NUMBER failed"
 	OUT_SNAPS_DIR="$OUTPUT_PREFIX.new/.snapshots"
 	if [ -d "$OUT_SNAPS_DIR" ]
 	then
