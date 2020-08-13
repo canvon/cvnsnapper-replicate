@@ -74,10 +74,10 @@ then
 		CHECK_TEXT="connection between last output prefix snapshot and corresponding input snapshot"
 
 		OUT_RECEIVED_UUID="$(btrfs subvolume show "$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*Received UUID:\s*\([-0-9a-f]*\)$/\1/p')"
-		[ -n "$OUT_RECEIVED_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get last output prefix snapshot's received UUID"
+		[ -n "$OUT_RECEIVED_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get last output prefix snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s received UUID"
 
 		IN_UUID="$(btrfs subvolume show "$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/p')"
-		[ -n "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot's UUID"
+		[ -n "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s UUID"
 
 		[ "$OUT_RECEIVED_UUID" = "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Received UUID \"$OUT_RECEIVED_UUID\" doesn't match UUID \"$IN_UUID\""
 	fi
