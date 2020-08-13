@@ -65,7 +65,7 @@ then
 
 	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
 	then
-		LAST_SNAPSHOT_NUMBER_ARG=$(cd "$OUTPUT_SNAPSHOTS" && ls -1d [1-9]* | sort -n)
+		LAST_SNAPSHOT_NUMBER_ARG=$(cd "$OUTPUT_SNAPSHOTS" && ls -1d [1-9]* | sort -n | tail -1)
 	fi
 
 	if [ -n "$LAST_SNAPSHOT_NUMBER_ARG" ]
