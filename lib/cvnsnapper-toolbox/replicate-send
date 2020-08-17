@@ -131,8 +131,10 @@ then
 	[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
 	[ "$CST_OTHER_WHAT" = "receivedUUID" ] || die "Unexpected 2nd message from other side: \"$CST_OTHER_WHAT\""
 
-	OUT_RECEIVED_UUID="$CST_OTHER_REST"
+	read CST_OTHER_SNAPSHOT_NUMBER OUT_RECEIVED_UUID <<<"$CST_OTHER_REST"
+	[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Incomplete 2nd message from other side: Received UUID snapshot number missing!"
 	[ -n "$OUT_RECEIVED_UUID" ] || die "Incomplete 2nd message from other side: Received UUID missing!"
+	[ "$CST_OTHER_SNAPSHOT_NUMBER" = "$LAST_SNAPSHOT_NUMBER_ARG" ] || die "2nd message received UUID snapshot number \"$CST_OTHER_SNAPSHOT_NUMBER\" to our last snapshot number argument \"$LAST_SNAPSHOT_NUMBER_ARG\" mismatch, aborting"
 
 	# Sanity check. (Read further down.)
 	CHECK_TEXT="connection between last remote snapshot and corresponding local input snapshot"
