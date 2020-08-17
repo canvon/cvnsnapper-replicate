@@ -44,6 +44,21 @@ Like, if there is some other subvolume in there which would be lost by the
 deletion. Or whether it was in fact a snapshot of one of the replicated
 snapper snapshots..?)
 
+Run something like this to get `btrfs send` stream files for cold storage:
+(The `LAST_SNAPSHOT_NUMBER` is to not start with a full send, but
+an incremental one, based on the snapshot with the given number.)
+
+    # cd /srv/PATH/TO/SOURCE/.snapshots
+    # cvnsnapper replicate-send /srv/PATH/TO/COLD/STORAGE [LAST_SNAPSHOT_NUMBER]
+
+To replicate to a "live" btrfs on the same host (e.g., mounted backup disk),
+use: (It should figure out the last snapshot on its own, but may be overridden
+in case it doesn't work, or if some snapshots have been cleanup-deleted
+since then.)
+
+    # cd /srv/PATH/TO/SOURCE/.snapshots
+    # cvnsnapper replicate-send --receive /mnt/PATH/ON/BACKUP/DISK [LAST_SNAPSHOT_NUMBER]
+
 As of commit 59c1366 (Mon Aug 17 21:32:10 2020 +0200),
 there is **EXPERIMENTAL** (read: alpha quality?) support for a receive script
 running as root on another host, using a custom bi-directional message protocol
@@ -57,6 +72,16 @@ option in the `/root/.ssh/authorized_keys` file), if possible, and with care;
 don't trust the script to protect your target host/server from any attacks
 possible via crafted send streams, or to actually lock down the pubkey
 to quasi-append only btrfs replication access as intended, yet (or ever?) ...
+
+To actually use the `replicate-receive` back-end, on the source host, run:
+(It should figure out the last snapshot via the bi-directional
+message protocol.)
+
+    # cd /srv/PATH/TO/SOURCE/.snapshots
+    # cvnsnapper replicate-send --remote=HOST /srv/PATH/ON/REMOTE/HOST [LAST_SNAPSHOT_NUMBER]
+
+Note that replication is idempotent (by accident), so should just succeed
+without sending any snapshots if there are no newer ones.
 
 ## Import
 
