@@ -101,8 +101,9 @@ do
 		CST_OUTPUT_SNAPSHOT_DIR="$CST_OUTPUT_SNAPSHOTS/$CST_RECEIVE_SNAPSHOT_NUMBER"
 		[ -e "$CST_OUTPUT_SNAPSHOT_DIR" ] && die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Snapshot directory already exists"
 		mkdir "$CST_OUTPUT_SNAPSHOT_DIR" || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Couldn't create snapshot directory"
-		btrfs receive -e "$CST_OUTPUT_SNAPSHOT_DIR/" || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Failed in \"btrfs receive\""
+		btrfs receive -e "$CST_OUTPUT_SNAPSHOT_DIR/" >&2 || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Failed in \"btrfs receive\""
 		# ^ The -e lets btrfs receive end at an end-marker, instead of only on EOF (which we don't have).
+		#   The >&2 is an attempt to get the "At ..." message to the error stream, where it won't gobble up our protocol messages.
 		CST_SNAPSHOT_NUMBER="$CST_RECEIVE_SNAPSHOT_NUMBER"
 		protomsg_receivedUUID || die "Error in sending our next protocol message \"receivedUUID\" (after \"receive\"), aborting"
 		;;
