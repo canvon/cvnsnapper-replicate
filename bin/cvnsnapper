@@ -89,6 +89,12 @@ done
 [ "$#" -ge 1 ] || die "Command argument missing! $CST_USAGE"
 CST_CMD="$1"; shift
 
+CST_CMD_FULL="$CST_DIR/$CST_CMD"
+if ! [ -f "$CST_CMD_FULL" ] || ! [ -x "$CST_CMD_FULL" ]
+then
+	die "Command \"$CST_CMD\" not found; try --help"
+fi
+
 msg_info "Running command \"$CST_CMD\"..."
-exec "$CST_DIR/$CST_CMD" "$@"
+exec "$CST_CMD_FULL" "$@"
 die "Failed to exec command \"$CST_CMD\"!"
