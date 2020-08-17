@@ -35,6 +35,12 @@ do
 		shift
 		SKIP_CLEANUPS=
 		;;
+	--remote=*)
+		MODE="remote"
+		REMOTE_HOST="${1#--remote=}"
+		shift
+		SKIP_CLEANUPS=
+		;;
 	*)
 		die "Invalid option \"$1\""
 		;;
@@ -54,7 +60,44 @@ LAST_SNAPSHOT_NUMBER_ARG=
 LAST_SNAPSHOT_NUMBER_ARG_REACHED=0
 LAST_SNAPSHOT_NUMBER=
 
-if [ "$MODE" = "sendreceive" ]
+if [ "$MODE" = "remote" ]
+then
+	# Spawn SSH to other host.
+	${CVNSNAPPER_TOOLBOX_SSH:-ssh} "$REMOTE_HOST" {CST_SSH_STDIN}<&0 </dev/null {CST_SSH_STDOUT}>&1 >/dev/null &
+	CST_SSH_PID="$!"
+	trap 'kill "$CST_SSH_PID"' TERM INT HUP EXIT
+
+	CST_THIS_SIDE="CVNSNAPPER_REPLICATE_SENDER"
+	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
+
+
+	# Read initial message.
+	read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read initial message from remote host"
+
+	[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
+	[ "$CST_OTHER_WHAT" = "have" ] || die "Unexpected initial message from other side: \"$CST_OTHER_WHAT\""
+
+	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
+	then
+		LAST_SNAPSHOT_NUMBER_ARG="$CST_OTHER_REST"
+	elif
+		[ "$CST_OTHER_REST" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || warn "Warning: Snapshot number the remote has, \"$CST_OTHER_REST\", and that we will be using, \"$LAST_SNAPSHOT_NUMBER_ARG\", don't match"
+	fi
+
+	echo "$CST_THIS_SIDE can $LAST_SNAPSHOT_NUMBER_ARG" >&"$CST_SSH_STDOUT" || die "Couldn't send protocol message reply that we \"can\" snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\""
+
+
+	read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read 2nd message from remote host"
+
+	[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
+	[ "$CST_OTHER_WHAT" = "receivedUUID" ] || die "Unexpected 2nd message from other side: \"$CST_OTHER_WHAT\""
+
+	OUT_RECEIVED_UUID="$CST_OTHER_REST"
+	[ -n "$OUT_RECEIVED_UUID" ] || die "Incomplete 2nd message from other side: Received UUID missing!"
+
+	# Sanity check. (Read further down.)
+	CHECK_TEXT="connection between last remote snapshot and corresponding local input snapshot"
+elif [ "$MODE" = "sendreceive" ]
 then
 	[ -d "$OUTPUT_PREFIX" ] || die "In mode $MODE, output prefix must be a directory"
 	[ "$(stat -c '%i' "$OUTPUT_PREFIX")" -eq 256 ] || die "In mode $MODE, output prefix must be a subvolume"
@@ -85,13 +128,17 @@ then
 			OUT_RECEIVED_UUID="$(btrfs subvolume list -u -R "$OUT_SNAP" | sed -n -e "s/.* received_uuid \\([-0-9a-f]*\\) uuid $OUT_UUID .*/\\1/ip")"
 			[ -n "$OUT_RECEIVED_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get last output prefix snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s received UUID, not even via fall-back method"
 		fi
-
-		IN_UUID="$(btrfs subvolume show "$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
-		[ -n "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s UUID"
-
-		[ "$OUT_RECEIVED_UUID" = "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Received UUID \"$OUT_RECEIVED_UUID\" doesn't match UUID \"$IN_UUID\""
 	fi
 fi
+
+case "$MODE" in
+remote|sendreceive)
+	IN_UUID="$(btrfs subvolume show "$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
+	[ -n "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s UUID"
+
+	[ "$OUT_RECEIVED_UUID" = "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Received UUID \"$OUT_RECEIVED_UUID\" doesn't match UUID \"$IN_UUID\""
+	;;
+esac
 
 while read SNAPSHOT_NUMBER
 do
