@@ -11,6 +11,47 @@ die() {
 	exit 1
 }
 
+CST_SHELL_CLEANUP_RAN=
+CST_TMP_DIR=
+CST_SSH_PID=
+shell_cleanup() {
+	[ -n "$CST_SHELL_CLEANUP_RAN" ] && return 0
+	CST_SHELL_CLEANUP_RAN=1
+
+	SIG=
+	[ "$#" -ge 1 ] && { SIG="$1"; shift; }
+	FAIL=0
+	if [ -n "$CST_TMP_DIR" ] && [ -d "$CST_TMP_DIR" ]
+	then
+		rm -r "$CST_TMP_DIR" || FAIL=1
+		CST_TMP_DIR=
+	fi
+
+	if [ -n "$CST_SSH_PID" ]
+	then
+		kill "$CST_SSH_PID" || FAIL=1
+		CST_SSH_PID=
+	fi
+
+	# Re-raise signal.
+	case "$SIG" in
+	"")
+		;;
+	EXIT)
+		trap - "$SIG"
+		exit "$FAIL"
+		;;
+	*)
+		trap - "$SIG"
+		kill -"$SIG" "$$"
+		;;
+	esac
+}
+trap 'shell_cleanup TERM' TERM
+trap 'shell_cleanup INT'  INT
+trap 'shell_cleanup HUP'  HUP
+trap 'shell_cleanup EXIT' EXIT
+
 
 USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
 
@@ -62,10 +103,28 @@ LAST_SNAPSHOT_NUMBER=
 
 if [ "$MODE" = "remote" ]
 then
+	CST_TMP_DIR="$(mktemp -d)" || die "Couldn't create temporary directory for named pipes for SSH redirection"
+	[ -n "$CST_TMP_DIR" ] || die "Couldn't create temporary directory for named pipes for SSH redirection: Result was empty"
+	[ -d "$CST_TMP_DIR" ] || die "Couldn't create temporary directory for named pipes for SSH redirection: Is not a directory: \"$CST_TMP_DIR\""
+	mkfifo --mode="700" "$CST_TMP_DIR/ssh_stdin"  || die "Couldn't create named pipe for SSH input redirection"
+	mkfifo --mode="700" "$CST_TMP_DIR/ssh_stdout" || die "Couldn't create named pipe for SSH output redirection"
+
 	# Spawn SSH to other host.
-	${CVNSNAPPER_TOOLBOX_SSH:-ssh} "$REMOTE_HOST" {CST_SSH_STDIN}<&0 </dev/null {CST_SSH_STDOUT}>&1 >/dev/null &
+	exec {CST_SSH_STDIN}<>"$CST_TMP_DIR/ssh_stdin" || die "SSH input redirection failed"
+	exec {CST_SSH_STDOUT}<>"$CST_TMP_DIR/ssh_stdout" || die "SSH output redirection failed"
+	${CVNSNAPPER_TOOLBOX_SSH:-ssh} \
+		-f "$REMOTE_HOST" \
+		${CVNSNAPPER_TOOLBOX_REMOTE_COMMAND:-cvnsnapper replicate-receive} "$OUTPUT_PREFIX" \
+		<"$CST_TMP_DIR/ssh_stdin" \
+		>"$CST_TMP_DIR/ssh_stdout" || die "Spawning SSH failed"
 	CST_SSH_PID="$!"
-	trap 'kill "$CST_SSH_PID"' TERM INT HUP EXIT
+	[ -n "$CST_SSH_PID" ] || die "Can't get SSH PID, invocation likely failed! Aborting"
+
+	[ -n "$CST_SSH_STDIN"  ] || die "Couldn't get SSH stdin fd redirection: Result is empty"
+	[ -n "$CST_SSH_STDOUT" ] || die "Couldn't get SSH stdout fd redirection: Result is empty"
+
+	# FIXME
+	echo "DEBUG: SSH pid=$CST_SSH_PID fd_stdin=$CST_SSH_STDIN fd_stdout=$CST_SSH_STDOUT"
 
 	CST_THIS_SIDE="CVNSNAPPER_REPLICATE_SENDER"
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
