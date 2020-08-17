@@ -8,6 +8,10 @@ warn() {
 
 die() {
 	warn "Fatal: $*"
+
+	# Close SSH stdin pipe fd, to allow the connection to die.
+	[ -n "$CST_SSH_STDIN" ] && exec "$CST_SSH_STDIN">&-
+
 	exit 1
 }
 
