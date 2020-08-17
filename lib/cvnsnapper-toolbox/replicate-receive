@@ -1,0 +1,121 @@
+#!/bin/bash
+
+set -o pipefail
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+
+CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
+
+CST_THIS_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
+
+
+[ "$#" -ge 1 ] || die "$CST_USAGE"
+
+CST_OUTPUT_SUBVOL="$1"; shift
+
+[ "$#" -eq 0 ] || die "Too many arguments! $USAGE"
+
+
+[ -d "$CST_OUTPUT_SUBVOL" ] || die "Output subvolume is not a directory: \"$CST_OUTPUT_SUBVOL\""
+
+[ "$(stat -c '%i' "$CST_OUTPUT_SUBVOL")" = "256" ] || die "Output subvolume is not a subvolume: \"$CST_OUTPUT_SUBVOL\""
+
+[ "$(btrfs property get "$CST_OUTPUT_SUBVOL" ro)" = "ro=true" ] || die "Output subvolume is not read-only: \"$CST_OUTPUT_SUBVOL\""
+
+
+CST_OUTPUT_SNAPSHOTS="$CST_OUTPUT_SUBVOL/.snapshots"
+
+[ -d "$CST_OUTPUT_SNAPSHOTS" ] || die "Output snapper .snapshots subvolume is not a directory: \"$CST_OUTPUT_SNAPSHOTS\""
+
+[ "$(stat -c '%i' "$CST_OUTPUT_SNAPSHOTS")" = "256" ] || die "Output snapper .snapshots subvolume is not a subvolume: \"$CST_OUTPUT_SNAPSHOTS\""
+
+[ "$(btrfs property get "$CST_OUTPUT_SNAPSHOTS" ro)" = "ro=false" ] || die "Output snapper .snapshots subvolume *is* read-only though it shouldn't: \"$CST_OUTPUT_SNAPSHOTS\""
+
+
+CST_SNAPSHOT_NUMBER="$(cd "$CST_OUTPUT_SNAPSHOTS" && ls -1d [1-9]* | sort -n | tail -1)" || die "Can't determine initial last snapshot number: Pipe failed"
+[ -n "$CST_SNAPSHOT_NUMBER" ] || die "Can't determine initial last snapshot number: Result was empty"
+
+
+protomsg_receivedUUID() {
+	[ -n "$CST_SNAPSHOT_NUMBER" ] || die "Can't send protocol message \"receivedUUID\" as the current snapshot number is not set"
+
+	CST_SNAP="$CST_OUTPUT_SNAPSHOTS/$CST_SNAPSHOT_NUMBER/snapshot"
+	CST_RECEIVED_UUID="$(btrfs subvolume show "$CST_SNAP" | sed -n -e 's/^\s*Received UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
+	[ "$CST_RECEIVED_UUID" = "-" ] && die "Failed to retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\": Invalid received UUID \"$CST_RECEIVED_UUID\""
+	if [ -z "$CST_RECEIVED_UUID" ]
+	then
+		# Work-around for older versions of btrfs command:
+
+		CST_UUID="$(btrfs subvolume show "$CST_SNAP" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
+		[ -n "$CST_UUID" ] || die "Failed to retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\", work-around for older btrfs command: Couldn't get UUID"
+
+		# -u: UUID, -R: received UUID
+		CST_RECEIVED_UUID="$(btrfs subvolume list -u -R "$CST_SNAP" | sed -n -e "s/.* received_uuid \\([-0-9a-f]*\\) uuid $CST_UUID .*/\\1/ip")"
+		[ -n "$CST_RECEIVED_UUID" ] || die "Failed to retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\", work-around for older btrfs command: Couldn't get received UUID"
+	fi
+
+	echo "$CST_THIS_SIDE receivedUUID $CST_SNAPSHOT_NUMBER $CST_RECEIVED_UUID"
+}
+
+
+# Get the conversation going...
+echo "$CST_THIS_SIDE have $CST_SNAPSHOT_NUMBER"
+
+CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_SENDER"
+
+CST_GOT_END=
+while read CST_OTHER_SIDE CST_OTHER_WHAT CST_OTHER_REST
+do
+	[ "$CST_OTHER_SIDE" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_SIDE\" (expected \"$CST_EXPECTED_OTHER_SIDE\")"
+
+	CST_BREAK=
+	case "$CST_OTHER_WHAT" in
+	end)
+		[ -z "$CST_OTHER_REST" ] || die "Invalid other side message: \"end\" message with trailing data..."
+		CST_GOT_END=1
+		CST_BREAK=1
+		;;
+	can)
+		read CST_REQUESTED_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
+		[ -n "$CST_REQUESTED_SNAPSHOT_NUMBER" ] || die "Invalid other side message: \"can\" message is missing snapshot number"
+		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"can\" message with trailing data..."
+
+		[ "$CST_REQUESTED_SNAPSHOT_NUMBER" = "$CST_SNAPSHOT_NUMBER" ] || die "Backing off to more older snapshots not supported, yet!"
+		protomsg_receivedUUID || die "Error in sending our next protocol message \"receivedUUID\" (after \"can\"), aborting"
+		;;
+	receive)
+		read CST_RECEIVE_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
+		[ -n "$CST_RECEIVE_SNAPSHOT_NUMBER" ] || die "Invalid other side message: \"receive\" message is missing snapshot number"
+		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"receive\" message with trailing data..."
+
+		[ "$CST_RECEIVE_SNAPSHOT_NUMBER" -gt "$CST_SNAPSHOT_NUMBER" ] || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\" is forbidden as it is not later than \"$CST_SNAPSHOT_NUMBER\""
+
+		CST_OUTPUT_SNAPSHOT_DIR="$CST_OUTPUT_SNAPSHOTS/$CST_RECEIVE_SNAPSHOT_NUMBER"
+		[ -e "$CST_OUTPUT_SNAPSHOT_DIR" ] && die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Snapshot directory already exists"
+		mkdir "$CST_OUTPUT_SNAPSHOT_DIR" || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Couldn't create snapshot directory"
+		btrfs receive "$CST_OUTPUT_SNAPSHOT_DIR/" || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Failed in \"btrfs receive\""
+		CST_SNAPSHOT_NUMBER="$CST_RECEIVE_SNAPSHOT_NUMBER"
+		protomsg_receivedUUID || die "Error in sending our next protocol message \"receivedUUID\" (after \"receive\"), aborting"
+		;;
+	*)
+		die "Invalid other side message: Unrecognized message type \"$CST_OTHER_WHAT\""
+		;;
+	esac
+	[ -n "$CST_BREAK" ] && break
+done
+
+[ -n "$CST_GOT_END" ] || die "Other side terminated without sending proper end message! Aborting post-operation..."
+
+
+# TODO: Post-operation... (See replicate-send.)
+
+
+exit 0
