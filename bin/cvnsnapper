@@ -1,0 +1,94 @@
+#!/bin/bash
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+msg_info() {
+	if [ -z "$CVNSNAPPER_TOOLBOX_VERBOSE" ] || ! [ "$CVNSNAPPER_TOOLBOX_VERBOSE" -ge 1 ]
+	then
+		return 0
+	fi
+	warn "Info: $*"
+}
+
+msg_debug() {
+	if [ -z "$CVNSNAPPER_TOOLBOX_VERBOSE" ] || ! [ "$CVNSNAPPER_TOOLBOX_VERBOSE" -ge 2 ]
+	then
+		return 0
+	fi
+	warn "DEBUG: $*"
+}
+
+
+CST_BIN_BASE=
+CST_DIR=
+
+if [ -z "$CVNSNAPPER_TOOLBOX_LIBDIR" ]
+then
+	msg_debug "Trying to guess CVNSNAPPER_TOOLBOX_LIBDIR..."
+
+	msg_debug "Front-end script seems to be \"$0\""
+
+	CST_BIN_BASE="${0%/bin/cvnsnapper}"
+	if [ "$CST_BIN_BASE" != "$0" ]
+	then
+		msg_debug "Extracting a base directory directly worked."
+	else
+		msg_debug "Couldn't directly extract a base directory; trying readlink..."
+
+		CST_BIN_BASE="$(readlink -f "$(dirname "$(readlink -f "$0")")/..")"
+	fi
+
+	[ -n "$CST_BIN_BASE" ] || die "Can't locate cvnsnapper-toolbox base directory: Result was empty"
+	msg_debug "Extracted base directory \"$CST_BIN_BASE\""
+
+	[ -d "$CST_BIN_BASE" ] || die "Can't locate cvnsnapper-toolbox base directory: Result \"$CST_BIN_BASE\" was not a directory"
+
+	CST_DIR="$CST_BIN_BASE/lib/cvnsnapper-toolbox"
+	export CVNSNAPPER_TOOLBOX_LIBDIR="$CST_DIR"
+else
+	msg_debug "Using existing CVNSNAPPER_TOOLBOX_LIBDIR..."
+	CST_DIR="$CVNSNAPPER_TOOLBOX_LIBDIR"
+fi
+
+[ -d "$CST_DIR" ] || die "Can't locate cvnsnapper-toolbox lib directory: Result \"$CST_DIR\" was not a directory"
+msg_info "Found cvnsnapper-toolbox lib directory at \"$CST_DIR\""
+
+
+CST_USAGE="Usage: $0 COMMAND [ARGS ...]"
+
+[ "$#" -ge 1 ] || die "$CST_USAGE"
+
+CST_CMD=
+
+while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+do
+	CST_OPT="$1"
+	case "$CST_OPT" in
+	--usage)
+		echo "$CST_USAGE"
+		exit 0
+		;;
+	--help)
+		echo "This is the cvnsnapper-toolbox front-end script. It runs commands from \"$CST_DIR\":"
+		ls "$CST_DIR"
+		exit
+		;;
+	*)
+		die "Invalid option argument \"$CST_OPT\""
+		;;
+	esac
+done
+
+[ "$#" -ge 1 ] || die "Command argument missing! $CST_USAGE"
+CST_CMD="$1"; shift
+
+msg_info "Running command \"$CST_CMD\"..."
+exec "$CST_DIR/$CST_CMD" "$@"
+die "Failed to exec command \"$CST_CMD\"!"
