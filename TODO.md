@@ -3,12 +3,12 @@
 TODO for cvnsnapper-toolbox project.
 
 
-## cvnsnapper-replicate-receive
+## replicate-receive
 
   * Add, implement.
 
 
-## cvnsnapper-plain-statusmetadata
+## plain-statusmetadata
 
   * Allow mapping of difference field names to flag chars
     like in "snapper status".

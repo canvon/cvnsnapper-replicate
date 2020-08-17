@@ -13,9 +13,20 @@ stands for `canvon`, the IRC nick name of the original author, *Fabian Pietsch*.
   seems to be no valid SSL/TLS certificate configured as of 2020-08-13;
   therefore linking without https.)
 
+## Front-end script
+
+As of commit 80ba152f274ac046e37f6f386d731f1fe9eed4cb (Mon Aug 17 15:36:54 2020 +0200)
+"Switch from handful of scripts to a libdir + front-end script",
+cvnsnapper is using a front-end script (in `bin/`) to invoke scripts
+(in `lib/cvnsnapper-toolbox/`).
+
+To invoke the `plain-backingstorage` script, invoke like this:
+
+    # cvnsnapper plain-backingstorage show .
+
 ## Replication
 
-`cvnsnapper-replicate-send` is the main tool; from an existing
+`cvnsnapper replicate-send` is the main tool; from an existing
 snapper `.snapshots` btrfs subvolume, it allows to turn the snapshots
 into `btrfs send` output files for cold storage, or to orchestrate
 `btrfs send | btrfs receive` pipelines (currently local-only)
@@ -37,25 +48,25 @@ snapper snapshots..?)
 In the case you've old, manual (`btrfs subvolume snapshot ...`) snapshots
 lying around in the filesystem, this is intended to help you turn them
 into proper snapper-based snapshots (organized by number and with attached
-`info.xml`). Use `cvnsnapper-import-byreplication`, which uses
-`cvnsnapper-import-name2infoxml` to convert from in-filesystem, in-snapshotname
+`info.xml`). Use `cvnsnapper import-byreplication`, which uses
+`cvnsnapper import-name2infoxml` to convert from in-filesystem, in-snapshotname
 description to snapper format.
 
 ## Plain filesystem operation
 
-* `cvnsnapper-plain-backingstorage` will successively determine
+* `cvnsnapper plain-backingstorage` will successively determine
   where the storage a file system item is using comes from (e.g., btrfs), then,
   where that storage comes from (e.g., LVM), and so on. (cryptsetup/LUKS,
   partition, drive.)  Should walk through all the devices which are part of
   a multi-device btrfs. Even has a bit of ZFS support, though that is currently
   not well-tested.
 
-*   `cvnsnapper-plain-genmetadata` generates meta-data of a subvolume/snapshot,
+*   `cvnsnapper plain-genmetadata` generates meta-data of a subvolume/snapshot,
     for later comparison, e.g., after replication. In theory, everything
     should be there, but I'm told that especially btrfs send|receive has some bugs,
     and better be safe than sorry!
 
-    `cvnsnapper-plain-statusmetadata` and `cvnsnapper-plain-diffmetadata`
+    `cvnsnapper plain-statusmetadata` and `cvnsnapper plain-diffmetadata`
     are there to then make use of this generated meta-data, for snapper-like
     status (meta-data) and diff (file contents) output.
 
