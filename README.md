@@ -29,7 +29,8 @@ To invoke the `plain-backingstorage` script, invoke like this:
 `cvnsnapper replicate-send` is the main tool; from an existing
 snapper `.snapshots` btrfs subvolume, it allows to turn the snapshots
 into `btrfs send` output files for cold storage, or to orchestrate
-`btrfs send | btrfs receive` pipelines (currently local-only)
+`btrfs send | btrfs receive` pipelines (currently local-only, except for
+experimental support for a bi-directional SSH pipeline, see below,)
 for simple data replication in snapper form.
 
 The former is the default, the latter gets activated by `--receive`.
@@ -42,6 +43,20 @@ data on the destination main subvolume. (Perhaps this needs further checks?
 Like, if there is some other subvolume in there which would be lost by the
 deletion. Or whether it was in fact a snapshot of one of the replicated
 snapper snapshots..?)
+
+As of commit 59c1366 (Mon Aug 17 21:32:10 2020 +0200),
+there is **EXPERIMENTAL** (read: alpha quality?) support for a receive script
+running as root on another host, using a custom bi-directional message protocol
+over SSH: `cvnsnapper replicate-receive`, although it should rather be set up
+on the target host as an SSH forced command spelling out the actual script file
+.., to try to avoid surprises. (Like, the front-end script getting fooled
+to run scripts from a rogue directory, or the like...)
+
+Please only use with SSH "restrict" option (near forced command `command="..."`
+option in the `/root/.ssh/authorized_keys` file), if possible, and with care;
+don't trust the script to protect your target host/server from any attacks
+possible via crafted send streams, or to actually lock down the pubkey
+to quasi-append only btrfs replication access as intended, yet (or ever?) ...
 
 ## Import
 
