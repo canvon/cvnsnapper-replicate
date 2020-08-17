@@ -89,6 +89,12 @@ done
 [ "$#" -ge 1 ] || die "Command argument missing! $CST_USAGE"
 CST_CMD="$1"; shift
 
+case "$CST_CMD" in
+.|..|*/*)
+	die "Path specification as command argument is invalid."
+	;;
+esac
+
 CST_CMD_FULL="$CST_DIR/$CST_CMD"
 if ! [ -f "$CST_CMD_FULL" ] || ! [ -x "$CST_CMD_FULL" ]
 then
