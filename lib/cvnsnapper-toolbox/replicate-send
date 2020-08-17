@@ -80,7 +80,7 @@ then
 	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
 	then
 		LAST_SNAPSHOT_NUMBER_ARG="$CST_OTHER_REST"
-	elif
+	else
 		[ "$CST_OTHER_REST" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || warn "Warning: Snapshot number the remote has, \"$CST_OTHER_REST\", and that we will be using, \"$LAST_SNAPSHOT_NUMBER_ARG\", don't match"
 	fi
 
