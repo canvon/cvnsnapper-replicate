@@ -10,7 +10,11 @@ die() {
 	warn "Fatal: $*"
 
 	# Close SSH stdin pipe fd, to allow the connection to die.
-	[ -n "$CST_SSH_STDIN" ] && exec "$CST_SSH_STDIN">&-
+	# (But, in fact, doesn't seem to help. ..?)
+	if [ -n "$CST_SSH_STDIN" ]
+	then
+		exec {CST_SSH_STDIN}>&- || warn "Failed to close SSH standard input"
+	fi
 
 	exit 1
 }
