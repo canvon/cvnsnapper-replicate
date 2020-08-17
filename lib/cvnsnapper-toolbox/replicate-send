@@ -322,7 +322,7 @@ if [ "$MODE" = "remote" ]
 then
 	echo "$CST_THIS_SIDE end" >&"$CST_SSH_STDIN" || die "Sending \"end\" message failed"
 	warn "Waiting for remote side to finish..."
-	read CST_OTHER_LINE <&"CST_SSH_STDOUT" && die "Error! Remote side still had more to say! \"$CST_OTHER_LINE\""
+	read CST_OTHER_LINE <&"$CST_SSH_STDOUT" && die "Error! Remote side still had more to say! \"$CST_OTHER_LINE\""
 fi
 
 # Post-operation.
