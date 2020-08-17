@@ -220,6 +220,10 @@ do
 			# (Note that line has already been ended by btrfs output.)
 			cp -a "$SNAPSHOT_INFO" "$OUTPUT_SNAPSHOT_DIR/" || die "Copying snapshot info \"$SNAPSHOT_INFO\" to output snapshot directory \"$OUTPUT_SNAPSHOT_DIR\" failed (with code $?)"
 			;;
+		remote)
+			echo "(error)"
+			die "Full send (of snapshot \"$SNAPSHOT_NUMBER\") not implemented, yet"
+			;;
 		*)
 			echo "(error)"
 			die "Unsupported mode-of-operation \"$MODE\""
@@ -244,6 +248,18 @@ do
 			btrfs send -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" | btrfs receive "$OUTPUT_SNAPSHOT_DIR" || { CODE="$?"; echo "(error)"; die "While doing incremental send-receive of snapshot number $SNAPSHOT_NUMBER with parent $LAST_SNAPSHOT_NUMBER: btrfs send|receive pipeline failed (with code $CODE)"; }
 			cp -a "$SNAPSHOT_INFO" "$OUTPUT_SNAPSHOT_DIR/" || die "Copying snapshot info \"$SNAPSHOT_INFO\" to output snapshot directory \"$OUTPUT_SNAPSHOT_DIR\" failed (with code $?)"
 			;;
+		remote)
+			echo "$CST_THIS_SIDE receive $SNAPSHOT_NUMBER" >&"$CST_SSH_STDIN" || die "Failed to send protocol message for the remote host to receive snapshot number \"$SNAPSHOT_NUMBER\""
+			btrfs send -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" >&"$CST_SSH_STDIN" || die "Sending \"btrfs send\" stream to remote host failed"
+			# TODO: Somehow also transfer the info.xml!
+
+			read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read send stream response message from remote host"
+			[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
+			[ "$CST_OTHER_WHAT" = "receivedUUID" ] || die "Unexpected send stream response message from other side: \"$CST_OTHER_WHAT\""
+			OUT_RECEIVED_UUID="$CST_OTHER_REST"
+			[ -n "$OUT_RECEIVED_UUID" ] || die "Incomplete send stream response message from other side: Received UUID missing!"
+			# TODO: Check received UUID against UUID of subvol we wanted to send?
+			;;
 		*)
 			echo "(error)"
 			die "Unsupported mode-of-operation \"$MODE\""
@@ -252,6 +268,12 @@ do
 	fi
 	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
+
+if [ "$MODE" = "remote" ]
+then
+	echo "$CST_THIS_SIDE end" >&"$CST_SSH_STDIN" || die "Sending \"end\" message failed"
+	wait "$CST_SSH_PID" || die "Failed to wait for remote host or SSH command exited unsuccessfully"
+fi
 
 # Post-operation.
 if [ "$MODE" = "sendreceive" ]
