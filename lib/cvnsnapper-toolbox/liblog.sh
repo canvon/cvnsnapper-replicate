@@ -6,18 +6,15 @@
 # but if something should get changed here, please copy over the change
 # to bin/cvnsnapper, too!
 
+is_info()  { [ "${CVNSNAPPER_TOOLBOX_VERBOSE:-0}" -ge 1 ]; }
+is_debug() { [ "${CVNSNAPPER_TOOLBOX_VERBOSE:-0}" -ge 2 ]; }
+
 msg_info() {
-	if [ -z "$CVNSNAPPER_TOOLBOX_VERBOSE" ] || ! [ "$CVNSNAPPER_TOOLBOX_VERBOSE" -ge 1 ]
-	then
-		return 0
-	fi
+	is_info || return 0
 	warn "Info: $*"
 }
 
 msg_debug() {
-	if [ -z "$CVNSNAPPER_TOOLBOX_VERBOSE" ] || ! [ "$CVNSNAPPER_TOOLBOX_VERBOSE" -ge 2 ]
-	then
-		return 0
-	fi
+	is_debug || return 0
 	warn "DEBUG: $*"
 }
