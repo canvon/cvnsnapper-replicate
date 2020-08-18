@@ -66,6 +66,7 @@ CST_USAGE="Usage: $0 COMMAND [ARGS ...]"
 [ "$#" -ge 1 ] || die "$CST_USAGE"
 
 CST_CMD=
+CST_RESOLVE=
 
 while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
 do
@@ -79,6 +80,10 @@ do
 		echo "This is the cvnsnapper-toolbox front-end script. It runs commands from \"$CST_DIR\":"
 		ls "$CST_DIR"
 		exit
+		;;
+	--resolve)
+		CST_RESOLVE=1
+		shift
 		;;
 	*)
 		die "Invalid option argument \"$CST_OPT\""
@@ -96,9 +101,19 @@ case "$CST_CMD" in
 esac
 
 CST_CMD_FULL="$CST_DIR/$CST_CMD"
-if ! [ -f "$CST_CMD_FULL" ] || ! [ -x "$CST_CMD_FULL" ]
+
+if [ -n "$CST_RESOLVE" ]
+then
+	echo "$CST_CMD_FULL"
+	exit 0
+fi
+
+if ! [ -f "$CST_CMD_FULL" ]
 then
 	die "Command \"$CST_CMD\" not found; try --help"
+elif ! [ -x "$CST_CMD_FULL" ]
+then
+	die "Requested command \"$CST_CMD\" is not executable; try --resolve to get its full path, e.g., if it's a library you want to use, or to inspect the file"
 fi
 
 msg_info "Running command \"$CST_CMD\"..."
