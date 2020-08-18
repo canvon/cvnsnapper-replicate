@@ -60,6 +60,9 @@ trap 'shell_cleanup INT'  INT
 trap 'shell_cleanup HUP'  HUP
 trap 'shell_cleanup EXIT' EXIT
 
+CST_DIR="$(dirname "$0")"
+. "$CST_DIR/liblog.sh" || die "Failed to source shell library liblog.sh"
+
 
 USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
 
@@ -212,33 +215,36 @@ do
 	# Consider snapshot number verbosely, and possibly skip.
 	#
 
-	echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
+	is_info && echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
 
 	SNAPSHOT_INFO="$SNAPSHOT_NUMBER/info.xml"
-	[ -f "$SNAPSHOT_INFO" ] || { echo "(error)"; die "Missing info.xml at snapper snapshot number $SNAPSHOT_NUMBER"; }
+	[ -f "$SNAPSHOT_INFO" ] || { is_info && echo "(error)"; die "Missing info.xml at snapper snapshot number $SNAPSHOT_NUMBER"; }
 
-	SNAPSHOT_NUM=$(sed -n -e 's#^.*<num>\([^<]*\)</num>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER num: sed failed"; }
-	[ "$SNAPSHOT_NUMBER" = "$SNAPSHOT_NUM" ] || { echo "(error)"; die "Meta-data \"num\" does not match at snapper snapshot number $SNAPSHOT_NUMBER "; }
+	SNAPSHOT_NUM=$(sed -n -e 's#^.*<num>\([^<]*\)</num>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER num: sed failed"; }
+	[ "$SNAPSHOT_NUMBER" = "$SNAPSHOT_NUM" ] || { is_info && echo "(error)"; die "Meta-data \"num\" does not match at snapper snapshot number $SNAPSHOT_NUMBER "; }
 
-	SNAPSHOT_DATE=$(sed -n -e 's#^.*<date>\([^<]*\)</date>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER date: sed failed"; }
-	SNAPSHOT_TYPE=$(sed -n -e 's#^.*<type>\([^<]*\)</type>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER type: sed failed"; }
-	SNAPSHOT_UID=$(sed -n -e 's#^.*<uid>\([^<]*\)</uid>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER uid: sed failed"; }
-	SNAPSHOT_DESCRIPTION=$(sed -n -e 's#^.*<description>\([^<]*\)</description>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER description: sed failed"; }
+	SNAPSHOT_DATE=$(sed -n -e 's#^.*<date>\([^<]*\)</date>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER date: sed failed"; }
+	SNAPSHOT_TYPE=$(sed -n -e 's#^.*<type>\([^<]*\)</type>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER type: sed failed"; }
+	SNAPSHOT_UID=$(sed -n -e 's#^.*<uid>\([^<]*\)</uid>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER uid: sed failed"; }
+	SNAPSHOT_DESCRIPTION=$(sed -n -e 's#^.*<description>\([^<]*\)</description>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER description: sed failed"; }
 
-	SNAPSHOT_CLEANUP=$(sed -n -e 's#^.*<cleanup>\([^<]*\)</cleanup>.*#\1#p' <"$SNAPSHOT_INFO") || { echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER cleanup policy: sed failed"; }
+	SNAPSHOT_CLEANUP=$(sed -n -e 's#^.*<cleanup>\([^<]*\)</cleanup>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER cleanup policy: sed failed"; }
 	SKIP=0
 	for SKIP_CLEANUP in $SKIP_CLEANUPS
 	do
 		if [ "$SNAPSHOT_CLEANUP" = "$SKIP_CLEANUP" ]
 		then
-			echo "(Skipping due to cleanup policy \"$SNAPSHOT_CLEANUP\": Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\")"
+			if is_info
+			then echo "(Skipping due to cleanup policy \"$SNAPSHOT_CLEANUP\": Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\")"
+			else echo "(Skipping snapshot number $SNAPSHOT_NUMBER: cleanup $SNAPSHOT_CLEANUP)"
+			fi
 			SKIP=1
 			break
 		fi
 	done
 	[ "$SKIP" -eq 0 ] || continue
 
-	echo "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\""
+	is_info && echo "Date $SNAPSHOT_DATE type $SNAPSHOT_TYPE${SNAPSHOT_UID:+ uid $SNAPSHOT_UID}${SNAPSHOT_CLEANUP:+ cleanup $SNAPSHOT_CLEANUP}: \"$SNAPSHOT_DESCRIPTION\""
 
 
 	#
@@ -250,7 +256,7 @@ do
 
 	if [ -z "$LAST_SNAPSHOT_NUMBER" ]
 	then
-		echo -n "Full send: "
+		echo -n "Full send of $SNAPSHOT_NUMBER: "
 
 		case "$MODE" in
 		sendfiles)
@@ -282,7 +288,7 @@ do
 		INPUT_PARENT_SNAPSHOT="$LAST_SNAPSHOT_NUMBER/snapshot"
 		[ -d "$INPUT_PARENT_SNAPSHOT" ] || die "No parent snapshot under last snapshot number $LAST_SNAPSHOT_NUMBER"
 
-		echo -n "Incremental send with parent $LAST_SNAPSHOT_NUMBER: "
+		echo -n "Incremental send from $LAST_SNAPSHOT_NUMBER to $SNAPSHOT_NUMBER: "
 
 		case "$MODE" in
 		sendfiles)
