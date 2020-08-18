@@ -9,6 +9,7 @@ die() {
 	exit 1
 }
 
+# === Begin copy from liblog.sh ===
 msg_info() {
 	if [ -z "$CVNSNAPPER_TOOLBOX_VERBOSE" ] || ! [ "$CVNSNAPPER_TOOLBOX_VERBOSE" -ge 1 ]
 	then
@@ -24,6 +25,7 @@ msg_debug() {
 	fi
 	warn "DEBUG: $*"
 }
+# === End copy from liblog.sh ===
 
 
 CST_BIN_BASE=
@@ -59,6 +61,10 @@ fi
 
 [ -d "$CST_DIR" ] || die "Can't locate cvnsnapper-toolbox lib directory: Result \"$CST_DIR\" was not a directory"
 msg_info "Found cvnsnapper-toolbox lib directory at \"$CST_DIR\""
+
+# Now that we do have the path, replace msg_{debug,info}()
+# with the liblog.sh ones.
+. "$CST_DIR/liblog.sh" || die "Failed to source shell library liblog.sh"
 
 
 CST_USAGE="Usage: $0 COMMAND [ARGS ...]"
