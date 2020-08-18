@@ -204,7 +204,7 @@ do
 		LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 
 		# Sanity-check before trying to use this as parent later.
-		[ -d "$SNAPSHOT_NUMBER/snapshot" ] || die "Snapshot under last snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\" missing"
+		is_subvol "$SNAPSHOT_NUMBER/snapshot" || die "Snapshot under last snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\" missing"
 
 		continue
 	fi
@@ -251,7 +251,7 @@ do
 	#
 
 	INPUT_SNAPSHOT="$SNAPSHOT_NUMBER/snapshot"
-	[ -d "$INPUT_SNAPSHOT" ] || die "No input snapshot under snapshot number $SNAPSHOT_NUMBER"
+	is_subvol "$INPUT_SNAPSHOT" || die "No input snapshot under snapshot number $SNAPSHOT_NUMBER"
 
 	if [ -z "$LAST_SNAPSHOT_NUMBER" ]
 	then
@@ -285,7 +285,7 @@ do
 		esac
 	else
 		INPUT_PARENT_SNAPSHOT="$LAST_SNAPSHOT_NUMBER/snapshot"
-		[ -d "$INPUT_PARENT_SNAPSHOT" ] || die "No parent snapshot under last snapshot number $LAST_SNAPSHOT_NUMBER"
+		is_subvol "$INPUT_PARENT_SNAPSHOT" || die "No parent snapshot under last snapshot number $LAST_SNAPSHOT_NUMBER"
 
 		echo -n "Incremental send from $LAST_SNAPSHOT_NUMBER to $SNAPSHOT_NUMBER: "
 
