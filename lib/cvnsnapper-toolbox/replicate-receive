@@ -12,6 +12,10 @@ die() {
 }
 
 
+CST_DIR="$(dirname "$0")"
+. "$CST_DIR/libbtrfs.sh" || die "Failed to source shell library libbtrfs.sh"
+
+
 CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
 
 CST_THIS_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
@@ -24,18 +28,14 @@ CST_OUTPUT_SUBVOL="$1"; shift
 [ "$#" -eq 0 ] || die "Too many arguments! $USAGE"
 
 
-[ -d "$CST_OUTPUT_SUBVOL" ] || die "Output subvolume is not a directory: \"$CST_OUTPUT_SUBVOL\""
-
-[ "$(stat -c '%i' "$CST_OUTPUT_SUBVOL")" = "256" ] || die "Output subvolume is not a subvolume: \"$CST_OUTPUT_SUBVOL\""
+is_subvol "$CST_OUTPUT_SUBVOL" || die "Output subvolume is not a subvolume: \"$CST_OUTPUT_SUBVOL\""
 
 [ "$(btrfs property get "$CST_OUTPUT_SUBVOL" ro)" = "ro=true" ] || die "Output subvolume is not read-only: \"$CST_OUTPUT_SUBVOL\""
 
 
 CST_OUTPUT_SNAPSHOTS="$CST_OUTPUT_SUBVOL/.snapshots"
 
-[ -d "$CST_OUTPUT_SNAPSHOTS" ] || die "Output snapper .snapshots subvolume is not a directory: \"$CST_OUTPUT_SNAPSHOTS\""
-
-[ "$(stat -c '%i' "$CST_OUTPUT_SNAPSHOTS")" = "256" ] || die "Output snapper .snapshots subvolume is not a subvolume: \"$CST_OUTPUT_SNAPSHOTS\""
+is_subvol "$CST_OUTPUT_SNAPSHOTS" || die "Output snapper .snapshots subvolume is not a subvolume: \"$CST_OUTPUT_SNAPSHOTS\""
 
 [ "$(btrfs property get "$CST_OUTPUT_SNAPSHOTS" ro)" = "ro=false" ] || die "Output snapper .snapshots subvolume *is* read-only though it shouldn't: \"$CST_OUTPUT_SNAPSHOTS\""
 

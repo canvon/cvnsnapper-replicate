@@ -62,6 +62,7 @@ trap 'shell_cleanup EXIT' EXIT
 
 CST_DIR="$(dirname "$0")"
 . "$CST_DIR/liblog.sh" || die "Failed to source shell library liblog.sh"
+. "$CST_DIR/libbtrfs.sh" || die "Failed to source shell library libbtrfs.sh"
 
 
 USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
@@ -151,12 +152,10 @@ then
 	CHECK_TEXT="connection between last remote snapshot and corresponding local input snapshot"
 elif [ "$MODE" = "sendreceive" ]
 then
-	[ -d "$OUTPUT_PREFIX" ] || die "In mode $MODE, output prefix must be a directory"
-	[ "$(stat -c '%i' "$OUTPUT_PREFIX")" -eq 256 ] || die "In mode $MODE, output prefix must be a subvolume"
+	is_subvol "$OUTPUT_PREFIX" || die "In mode $MODE, output prefix must be a subvolume"
 
 	OUTPUT_SNAPSHOTS="$OUTPUT_PREFIX/.snapshots"
-	[ -d "$OUTPUT_SNAPSHOTS" ] || die "Output prefix snapper .snapshots subvolume not found at \"$OUTPUT_SNAPSHOTS\""
-	[ "$(stat -c '%i' "$OUTPUT_SNAPSHOTS")" -eq 256 ] || die "Output prefix snapper .snapshots subvolume not a subvolume at \"$OUTPUT_SNAPSHOTS\""
+	is_subvol "$OUTPUT_SNAPSHOTS" || die "Output prefix snapper .snapshots subvolume not a subvolume at \"$OUTPUT_SNAPSHOTS\""
 
 	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
 	then
