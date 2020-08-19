@@ -160,11 +160,15 @@ then
 	[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
 	[ "$CST_OTHER_WHAT" = "have" ] || die "Unexpected initial message from other side: \"$CST_OTHER_WHAT\""
 
+	read CST_OTHER_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
+	[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Missing snapshot number"
+	[ -n "$CST_OTHER_REST" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Trailing data"
+
 	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
 	then
-		LAST_SNAPSHOT_NUMBER_ARG="$CST_OTHER_REST"
+		LAST_SNAPSHOT_NUMBER_ARG="$CST_OTHER_SNAPSHOT_NUMBER"
 	else
-		[ "$CST_OTHER_REST" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || warn "Warning: Snapshot number the remote has, \"$CST_OTHER_REST\", and that we will be using, \"$LAST_SNAPSHOT_NUMBER_ARG\", don't match"
+		[ "$CST_OTHER_SNAPSHOT_NUMBER" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || warn "Warning: Snapshot number the remote has, \"$CST_OTHER_SNAPSHOT_NUMBER\", and that we will be using, \"$LAST_SNAPSHOT_NUMBER_ARG\", don't match"
 	fi
 
 	echo "$CST_THIS_SIDE can $LAST_SNAPSHOT_NUMBER_ARG" >&"$CST_SSH_STDIN" || die "Couldn't send protocol message reply that we \"can\" snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\""
