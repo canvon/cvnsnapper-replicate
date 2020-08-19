@@ -45,6 +45,7 @@ is_subvol "$CST_OUTPUT_SNAPSHOTS" || die "Output snapper .snapshots subvolume is
 
 CST_SNAPSHOT_NUMBER="$(cd "$CST_OUTPUT_SNAPSHOTS" && ls -1d [1-9]* | sort -n | tail -1)" || die "Can't determine initial last snapshot number: Pipe failed"
 [ -n "$CST_SNAPSHOT_NUMBER" ] || die "Can't determine initial last snapshot number: Result was empty"
+is_number "$CST_SNAPSHOT_NUMBER" || die "Can't determine initial last snapshot number: Result does not validate as number"
 
 
 protomsg_receivedUUID() {
@@ -81,7 +82,7 @@ do
 		read CST_OTHER_PROTO CST_OTHER_REST <<<"$CST_OTHER_REST"
 		[ -n "$CST_OTHER_PROTO" ] || die "Invalid other side message: \"proto\" message missing protocol number..."
 		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"proto\" message with trailing data..."
-		# TODO: Validate as number, and only a number.
+		is_number "$CST_OTHER_PROTO" || die "Invalid other side message: \"proto\" message protocol number fails validation as number!"
 
 		[ "$CST_STATE_OTHER_MSGNUM" -eq 1 ] || die "Other side protocol message must be first message!"
 		[ -z "$CST_STATE_OTHER_PROTO" ] || die "Other side protocol has already been set! (to \"$CST_STATE_OTHER_PROTO\")"
@@ -106,6 +107,7 @@ do
 		read CST_REQUESTED_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
 		[ -n "$CST_REQUESTED_SNAPSHOT_NUMBER" ] || die "Invalid other side message: \"can\" message is missing snapshot number"
 		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"can\" message with trailing data..."
+		is_number "$CST_REQUESTED_SNAPSHOT_NUMBER" || die "Invalid other side message: \"can\" message snapshot number fails validation as number!"
 
 		[ "$CST_REQUESTED_SNAPSHOT_NUMBER" = "$CST_SNAPSHOT_NUMBER" ] || die "Backing off to more older snapshots not supported, yet!"
 		protomsg_receivedUUID || die "Error in sending our next protocol message \"receivedUUID\" (after \"can\"), aborting"
@@ -114,6 +116,7 @@ do
 		read CST_RECEIVE_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
 		[ -n "$CST_RECEIVE_SNAPSHOT_NUMBER" ] || die "Invalid other side message: \"receive\" message is missing snapshot number"
 		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"receive\" message with trailing data..."
+		is_number "$CST_RECEIVE_SNAPSHOT_NUMBER" || die "Invalid other side message: \"receive\" message snapshot number fails validation as number!"
 
 		[ "$CST_RECEIVE_SNAPSHOT_NUMBER" -gt "$CST_SNAPSHOT_NUMBER" ] || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\" is forbidden as it is not later than \"$CST_SNAPSHOT_NUMBER\""
 

@@ -42,6 +42,7 @@ is_snapper_snapshot() {
 
 	local CST_SNAPNUM_MAYBE="$1"; shift
 
+	is_number "$CST_SNAPNUM_MAYBE"            || return 1
 	[ -d      "$CST_SNAPNUM_MAYBE"          ] || return 1
 	is_subvol "$CST_SNAPNUM_MAYBE/snapshot"   || return 1
 	[ -f      "$CST_SNAPNUM_MAYBE/info.xml" ] || return 1

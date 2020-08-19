@@ -105,7 +105,11 @@ done
 OUTPUT_PREFIX="$1"; shift
 LAST_SNAPSHOT_NUMBER_ARG=
 
-[ "$#" -ge 1 ] && { LAST_SNAPSHOT_NUMBER_ARG="$1"; shift; }
+if [ "$#" -ge 1 ]
+then
+	LAST_SNAPSHOT_NUMBER_ARG="$1"; shift
+	is_number "$LAST_SNAPSHOT_NUMBER_ARG" || die "Invalid arguments: Last snapshot number argument does not seem to be a number"
+fi
 
 [ "$#" -eq 0 ] || die "Too many arguments -- $USAGE"
 
@@ -135,7 +139,7 @@ then
 	read CST_OTHER_PROTO CST_OTHER_REST <<<"$CST_OTHER_REST"
 	[ -n "$CST_OTHER_PROTO" ] || die "Invalid other side message: \"proto\" message missing protocol number..."
 	[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"proto\" message with trailing data..."
-	# TODO: Validate as number, and only a number.
+	is_number "$CST_OTHER_PROTO" || die "Invalid other side message: \"proto\" message protocol number fails validation as number!"
 
 	if [ "$CST_OTHER_PROTO" = "$CST_THIS_PROTO" ]
 	then
@@ -204,6 +208,7 @@ then
 	read CST_OTHER_SNAPSHOT_NUMBER OUT_RECEIVED_UUID <<<"$CST_OTHER_REST"
 	[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Incomplete 2nd message from other side: Received UUID snapshot number missing!"
 	[ -n "$OUT_RECEIVED_UUID" ] || die "Incomplete 2nd message from other side: Received UUID missing!"
+	is_number "$CST_OTHER_SNAPSHOT_NUMBER" || die "Invalid 2nd message from other side: Received UUID snapshot number fails validation as number!"
 	[ "$CST_OTHER_SNAPSHOT_NUMBER" = "$LAST_SNAPSHOT_NUMBER_ARG" ] || die "2nd message received UUID snapshot number \"$CST_OTHER_SNAPSHOT_NUMBER\" to our last snapshot number argument \"$LAST_SNAPSHOT_NUMBER_ARG\" mismatch, aborting"
 
 	# Sanity check. (Read further down.)
@@ -252,6 +257,8 @@ esac
 CST_SENT_SNAPNUMS=
 while read SNAPSHOT_NUMBER
 do
+	is_number "$SNAPSHOT_NUMBER" || die "In loop reading from list of source snapshot numbers, snapshot number is not a number: \"$SNAPSHOT_NUMBER\""
+
 	# Skip snapshots silently until last-arg, if last-arg was given.
 	if [ -n "$LAST_SNAPSHOT_NUMBER_ARG" ] && [ "$LAST_SNAPSHOT_NUMBER_ARG_REACHED" -eq 0 ]
 	then
