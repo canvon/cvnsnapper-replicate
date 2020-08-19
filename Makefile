@@ -9,7 +9,8 @@ install:
 	install -d "$$DEST/lib/cvnsnapper-toolbox"
 	install -t "$$DEST/lib/cvnsnapper-toolbox" -p -m u=rw,g=r,o=r \
 		lib/cvnsnapper-toolbox/liblog.sh \
-		lib/cvnsnapper-toolbox/libbtrfs.sh
+		lib/cvnsnapper-toolbox/libbtrfs.sh \
+		lib/cvnsnapper-toolbox/libsnapper.sh
 	install -t "$$DEST/lib/cvnsnapper-toolbox" -p \
 		lib/cvnsnapper-toolbox/replicate-send \
 		lib/cvnsnapper-toolbox/replicate-receive \
