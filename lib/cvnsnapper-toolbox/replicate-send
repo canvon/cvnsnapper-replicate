@@ -180,7 +180,14 @@ remote|sendreceive)
 	is_subvol "$IN_SNAP" || die "Failed to sanity-check $CHECK_TEXT: Input snapshot \"$IN_SNAP\" is not a subvolume"
 	IN_UUID="$(subvol_get_uuid "$IN_SNAP")" || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s UUID"
 
-	[ "$OUT_RECEIVED_UUID" = "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Received UUID \"$OUT_RECEIVED_UUID\" doesn't match UUID \"$IN_UUID\""
+	if ! [ "$OUT_RECEIVED_UUID" = "$IN_UUID" ]
+	then
+		# Allow both sides having been received from the same
+		# source subvolume somewhere else, too.
+
+		IN_RECEIVED_UUID="$(subvol_get_received_uuid "$IN_SNAP")" || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s received UUID"
+		[ "$OUT_RECEIVED_UUID" = "$IN_RECEIVED_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Receiving side's received UUID \"$OUT_RECEIVED_UUID\" neither matches sending side's UUID \"$IN_UUID\" nor received UUID \"$IN_RECEIVED_UUID\""
+	fi
 	;;
 esac
 
