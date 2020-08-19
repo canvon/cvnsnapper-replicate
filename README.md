@@ -13,6 +13,16 @@ stands for `canvon`, the IRC nick name of the original author, *Fabian Pietsch*.
   seems to be no valid SSL/TLS certificate configured as of 2020-08-13;
   therefore linking without https.)
 
+## Install
+
+This is all shell script (or Perl), so doesn't need compilation
+before installation.
+
+For installation, as root, run `make install`;
+or, e.g., `make install DEST=/opt/cvnsnapper`.
+This should install all the parts into destination's `lib/cvnsnapper-toolbox/`,
+and the front-end script into `bin/`.
+
 ## Front-end script
 
 As of commit 80ba152f274ac046e37f6f386d731f1fe9eed4cb (Mon Aug 17 15:36:54 2020 +0200)
