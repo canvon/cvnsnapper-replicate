@@ -122,7 +122,7 @@ then
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 
 	CST_THIS_PROTO_MIN=0
-	CST_THIS_PROTO=1
+	CST_THIS_PROTO=2
 	CST_STATE_OTHER_PROTO=
 
 
@@ -340,7 +340,15 @@ do
 		remote)
 			echo "$CST_THIS_SIDE receive $SNAPSHOT_NUMBER" >&"$CST_SSH_STDIN" || die "Failed to send protocol message for the remote host to receive snapshot number \"$SNAPSHOT_NUMBER\""
 			btrfs send -p "$INPUT_PARENT_SNAPSHOT" "$INPUT_SNAPSHOT" >&"$CST_SSH_STDIN" || die "Sending \"btrfs send\" stream to remote host failed"
-			# TODO: Somehow also transfer the info.xml!
+
+			# Since proto 2, also transfer the info.xml, in-band.
+			if [ "$CST_THIS_PROTO" -ge 2 ]
+			then
+				msg_debug "proto >= 2: Sending info.xml ..."
+				INPUT_INFO="$SNAPSHOT_NUMBER/info.xml"
+				( base64 --wrap=0 "$INPUT_INFO"; RET="$?"; echo || exit; exit "$RET" ) >&"$CST_SSH_STDIN" || die "Sending \"$INPUT_INFO\" data to remote host failed"
+				date -Ins --reference="$INPUT_INFO" >&"$CST_SSH_STDIN" || die "Sending \"$INPUT_INFO\" timestamp to remote host failed"
+			fi
 
 			read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read send stream response message from remote host"
 			[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""

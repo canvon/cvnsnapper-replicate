@@ -21,7 +21,7 @@ CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
 
 CST_THIS_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 CST_THIS_PROTO_MIN=0
-CST_THIS_PROTO=1
+CST_THIS_PROTO=2
 
 
 [ "$#" -ge 1 ] || die "$CST_USAGE"
@@ -128,6 +128,15 @@ do
 		# ^ The -e lets btrfs receive end at an end-marker, instead of only on EOF (which we don't have).
 		#   The >&2 is an attempt to get the "At ..." message to the error stream, where it won't gobble up our protocol messages.
 		CST_RECEIVED_SNAPNUMS="$CST_RECEIVED_SNAPNUMS $CST_RECEIVE_SNAPSHOT_NUMBER"
+
+		# Since protocol 2, we'll also receive the snapper info.xml, in-band.
+		if [ "$CST_STATE_OTHER_PROTO" -ge 2 ]
+		then
+			msg_debug "proto >= 2: Receiving info.xml ..."
+			CST_OUTPUT_INFO="$CST_OUTPUT_SNAPSHOT_DIR/info.xml"
+			( read THE_BASE64 || exit; umask 077 || exit; base64 --decode >"$CST_OUTPUT_INFO" <<<"$THE_BASE64" ) || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Failed in \"$CST_OUTPUT_INFO\" data"
+			( read THE_DATE || exit; touch --date="$THE_DATE" "$CST_OUTPUT_INFO" ) || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Failed in \"$CST_OUTPUT_INFO\" timestamp"
+		fi
 
 		# Answer with received UUID, to get the protocol going again...
 		CST_SNAPSHOT_NUMBER="$CST_RECEIVE_SNAPSHOT_NUMBER"
