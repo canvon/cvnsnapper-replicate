@@ -48,6 +48,7 @@ protomsg_receivedUUID() {
 	[ -n "$CST_SNAPSHOT_NUMBER" ] || die "Can't send protocol message \"receivedUUID\" as the current snapshot number is not set"
 
 	CST_SNAP="$CST_OUTPUT_SNAPSHOTS/$CST_SNAPSHOT_NUMBER/snapshot"
+	is_subvol "$CST_SNAP" || die "Snapshot \"$CST_SNAP\" is not a subvolume"
 	CST_RECEIVED_UUID="$(subvol_get_received_uuid "$CST_SNAP")" || die "Couldn't retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\""
 	[ "$CST_RECEIVED_UUID" = "-" ] && die "Received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\" invalid: \"$CST_RECEIVED_UUID\""
 
