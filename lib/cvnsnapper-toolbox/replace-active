@@ -1,0 +1,88 @@
+#!/bin/bash
+
+warn() {
+	echo "${0##*/}: $*" >&2
+}
+
+die() {
+	warn "Fatal: $*"
+	exit 1
+}
+
+
+CST_DIR="$(dirname "$0")"
+. "$CST_DIR/libbtrfs.sh" || die "Failed to source shell library libbtrfs.sh"
+
+
+CST_USAGE="Usage: $0 SNAPPER_ACTIVE_SUBVOL [REPLACEMENT_SNAPSHOT_NUMBER]"
+
+[ "$#" -ge 1 ] || die "$CST_USAGE"
+
+CST_ACTIVE_SUBVOL="$1"; shift
+
+CST_RE_SNAP_NUM=
+if [ "$#" -ge 1 ]
+then
+	CST_RE_SNAP_NUM="$1"; shift
+	# TODO: Validate as number, and only a number.
+fi
+
+[ "$#" -eq 0 ] || die "Too many arguments! $CST_USAGE"
+
+
+is_subvol "$CST_ACTIVE_SUBVOL" || die "Snapper active subvolume is not a subvolume: \"$CST_ACTIVE_SUBVOL\""
+
+[ "$(btrfs property get "$CST_ACTIVE_SUBVOL" ro)" = "ro=true" ] || die "Snapper active subvolume is not read-only: \"$CST_ACTIVE_SUBVOL\""
+
+
+CST_SNAPSHOTS="$CST_ACTIVE_SUBVOL/.snapshots"
+
+is_subvol "$CST_SNAPSHOTS" || die "Snapper .snapshots subvolume is not a subvolume: \"$CST_SNAPSHOTS\""
+
+[ "$(btrfs property get "$CST_SNAPSHOTS" ro)" = "ro=false" ] || die "Snapper .snapshots subvolume *is* read-only though it shouldn't: \"$CST_SNAPSHOTS\""
+
+
+if [ -z "$CST_RE_SNAP_NUM" ]
+then
+	CST_RE_SNAP_NUM="$(cd "$CST_SNAPSHOTS" && ls -1d [1-9]* | sort -n | tail -1)" || die "Can't determine last snapshot number: Pipe failed"
+
+	[ -n "$CST_RE_SNAP_NUM" ] || die "Can't determine last snapshot number: Result was empty"
+fi
+
+
+#
+# Start the actual replacement
+#
+
+echo "Replacing active subvolume \"$CST_ACTIVE_SUBVOL\" with snapper snapshot \"$CST_RE_SNAP_NUM\" ..."
+
+CST_NEW_SUBVOL="$CST_ACTIVE_SUBVOL.new"
+if [ -L "$CST_NEW_SUBVOL" ] || [ -e "$CST_NEW_SUBVOL" ]
+then
+	die "Couldn't begin replacing active subvolume: Temporary name for new subvolume \"$CST_NEW_SUBVOL\" is already in use"
+fi
+
+btrfs property set "$CST_ACTIVE_SUBVOL" ro false || die "Couldn't begin replacing active subvolume: Couldn't set read-write: \"$CST_ACTIVE_SUBVOL\""
+
+CST_RE_SNAP_SUBVOL="$CST_SNAPSHOTS/$CST_RE_SNAP_NUM/snapshot"
+is_subvol "$CST_RE_SNAP_SUBVOL" || die "Replacement snapshot \"$CST_RE_SNAP_NUM\" is not a subvolume: \"$CST_RE_SNAP_SUBVOL\""
+btrfs subvolume snapshot "$CST_RE_SNAP_SUBVOL" "$CST_NEW_SUBVOL" || die "Making snapshot of replacement snapshot $CST_RE_SNAP_NUM failed"
+CST_NEW_SNAPSHOTS="$CST_NEW_SUBVOL/.snapshots"
+if [ -d "$CST_NEW_SNAPSHOTS" ]
+then
+	rmdir "$CST_NEW_SNAPSHOTS" || die "Removing (supposedly) empty subvolume-placeholder directory \"$CST_NEW_SNAPSHOTS\" failed"
+fi
+mv "$CST_ACTIVE_SUBVOL/.snapshots" "$CST_NEW_SUBVOL/" || die "Hanging snapper .snapshots subvolume into snapshot of replacement snapshot failed"
+ATTENTION="ATTENTION: snapper .snapshots subvolume has already been hung into \"$CST_NEW_SUBVOL/\"!"
+
+# TODO: Maybe not so drastical?
+#   Keep around 3-10 of them, like with snapper cleanup "number"?
+#   (Including a minimum age.)
+# TODO: Check whether there are no (maybe) child subvolumes left?
+#   (Via btrfs subvolume list? + match for subvol ID or UUID...)
+btrfs subvolume delete "$CST_ACTIVE_SUBVOL" || die "Deleting previous active subvolume failed. $ATTENTION"
+mv "$CST_NEW_SUBVOL" "$CST_ACTIVE_SUBVOL" || die "Placing replacement active subvolume at old name failed. $ATTENTION"
+
+btrfs property set "$CST_ACTIVE_SUBVOL" ro true || die "Couldn't set replacement active subvolume read-only; but would be necessary for next $0 run"
+
+exit 0

@@ -191,6 +191,7 @@ remote|sendreceive)
 	;;
 esac
 
+CST_SENT_SNAPNUMS=
 while read SNAPSHOT_NUMBER
 do
 	# Skip snapshots silently until last-arg, if last-arg was given.
@@ -249,6 +250,8 @@ do
 	#
 	# Do the btrfs send operation.
 	#
+
+	CST_SENT_SNAPNUMS="$CST_SENT_SNAPNUMS $SNAPSHOT_NUMBER"
 
 	INPUT_SNAPSHOT="$SNAPSHOT_NUMBER/snapshot"
 	is_subvol "$INPUT_SNAPSHOT" || die "No input snapshot under snapshot number $SNAPSHOT_NUMBER"
@@ -323,6 +326,8 @@ do
 	LAST_SNAPSHOT_NUMBER="$SNAPSHOT_NUMBER"
 done < <(ls -1d [1-9]* | sort -n)
 
+echo "Finished main operation. Sent:${CST_SENT_SNAPNUMS:- (none)}"
+
 if [ "$MODE" = "remote" ]
 then
 	echo "$CST_THIS_SIDE end" >&"$CST_SSH_STDIN" || die "Sending \"end\" message failed"
@@ -331,28 +336,11 @@ then
 fi
 
 # Post-operation.
-if [ "$MODE" = "sendreceive" ]
+if [ "$MODE" = "sendreceive" ] && [ -n "$CST_SENT_SNAPNUMS" ]
 then
-	# Update the "main" subvol with the last snapshot,
-	# then hang the .snapshots subvol into there.
-	echo "Post-operation: Update output main subvolume, at \"$OUTPUT_PREFIX\" ..."
-
-	[ -n "$LAST_SNAPSHOT_NUMBER" ] || die "Post-operation: Can't update main subvolume as there was no last snapshot number!"
-	[ "$(btrfs property get "$OUTPUT_PREFIX" ro)" = "ro=true" ] || die "Post-operation: Can't update main subvolume as it was not set read-only, before"
-	btrfs property set "$OUTPUT_PREFIX" ro false || die "Post-operation: Couldn't update main subvolume: Couldn't set read-write"
-
-	btrfs subvolume snapshot "$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER/snapshot" "$OUTPUT_PREFIX.new" || die "Post-operation: Couldn't update main subvolume: Making snapshot of last snapshot $LAST_SNAPSHOT_NUMBER failed"
-	OUT_SNAPS_DIR="$OUTPUT_PREFIX.new/.snapshots"
-	if [ -d "$OUT_SNAPS_DIR" ]
-	then
-		rmdir "$OUT_SNAPS_DIR" || die "Post-operation: Couldn't update main subvolume: Removing empty subvolume-placeholder directory \"$OUT_SNAPS_DIR\" failed"
-	fi
-	mv "$OUTPUT_PREFIX/.snapshots" "$OUTPUT_PREFIX.new/" || die "Post-operation: Couldn't update main subvolume: Hanging snapper .snapshots subvolume into snapshot of last snapshot failed"
-	ATTENTION="ATTENTION: snapper .snapshots subvolume has already been hung into \"$OUTPUT_PREFIX.new/\"!"
-
-	btrfs subvolume delete "$OUTPUT_PREFIX" || die "Post-operation: Couldn't update main subvolume: Deleting previous version failed. $ATTENTION"
-	mv "$OUTPUT_PREFIX.new" "$OUTPUT_PREFIX" || die "Post-operation: Couldn't update main subvolume: Placing new version at old name failed. $ATTENTION"
-	btrfs property set "$OUTPUT_PREFIX" ro true || die "Post-operation: Couldn't update main subvolume: Couldn't set read-only; but would be necessary for next $0 run"
+	# Update the active subvol with the last sent snapshot,
+	# hanging the .snapshots subvol into there.
+	"$CST_DIR/replace-active" "$OUTPUT_PREFIX" "$LAST_SNAPSHOT_NUMBER" || die "Post-operation: Failed to update output active subvolume at \"$OUTPUT_PREFIX\""
 fi
 }  # End of main(), needed for piping SSH.
 
