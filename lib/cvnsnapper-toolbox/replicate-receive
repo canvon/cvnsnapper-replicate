@@ -124,7 +124,9 @@ if [ -n "$CST_RECEIVED_SNAPNUMS" ]
 then
 	# Update the active subvol with the last received snapshot,
 	# hanging the .snapshots subvol into there.
-	"$CST_DIR/replace-active" "$CST_OUTPUT_SUBVOL" "$CST_SNAPSHOT_NUMBER" || die "Post-operation: Failed to update output active subvolume at \"$CST_OUTPUT_SUBVOL\""
+	"$CST_DIR/replace-active" "$CST_OUTPUT_SUBVOL" "$CST_SNAPSHOT_NUMBER" >&2 || die "Post-operation: Failed to update output active subvolume at \"$CST_OUTPUT_SUBVOL\""
+	# ^ >&2 redirects the status message from stdout (where our
+	#   message protocol is running over) to stderr.
 fi
 
 
