@@ -144,10 +144,14 @@ then
 	then
 		msg_debug "Other side's protocol \"$CST_OTHER_PROTO\" is less than our side \"$CST_THIS_PROTO\""
 		[ "$CST_OTHER_PROTO" -ge "$CST_THIS_PROTO_MIN" ] || die "Other side's protocol \"$CST_OTHER_PROTO\" is less than our side's minimum \"$CST_THIS_PROTO_MIN\", aborting"
+		CST_THIS_PROTO="$CST_OTHER_PROTO"
 	else
-		die "Other side's protocol \"$CST_OTHER_PROTO\" not supported"
+		msg_debug "Other side's protocol \"$CST_OTHER_PROTO\" seemingly higher, trying to lower to our default protocol \"$CST_THIS_PROTO\"..."
+		CST_OTHER_PROTO="$CST_THIS_PROTO"
 	fi
 	CST_STATE_OTHER_PROTO="$CST_OTHER_PROTO"
+
+	echo "$CST_THIS_SIDE proto $CST_THIS_PROTO" >&"$CST_SSH_STDIN" || die "Couldn't send protocol message reply that we support \"proto\" (protocol number) \"$CST_THIS_PROTO\""
 
 
 	# Read initial message.
