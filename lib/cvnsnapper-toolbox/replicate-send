@@ -63,6 +63,7 @@ trap 'shell_cleanup EXIT' EXIT
 CST_DIR="$(dirname "$0")"
 . "$CST_DIR/liblog.sh" || die "Failed to source shell library liblog.sh"
 . "$CST_DIR/libbtrfs.sh" || die "Failed to source shell library libbtrfs.sh"
+. "$CST_DIR/libsnapper.sh" || die "Failed to source shell library libsnapper.sh"
 
 
 USAGE="Usage: $0 OUTPUT_PREFIX [LAST_SNAPSHOT_NUMBER]"
@@ -281,20 +282,13 @@ do
 	# Consider snapshot number verbosely, and possibly skip.
 	#
 
+	SNAPSHOT_INFO="$SNAPSHOT_NUMBER/info.xml"
+	parse_snapper_info || die "Failed to parse snapper snapshot number $SNAPSHOT_NUMBER info.xml"
+
 	is_info && echo -n "snapper snapshot number $SNAPSHOT_NUMBER: "
 
-	SNAPSHOT_INFO="$SNAPSHOT_NUMBER/info.xml"
-	[ -f "$SNAPSHOT_INFO" ] || { is_info && echo "(error)"; die "Missing info.xml at snapper snapshot number $SNAPSHOT_NUMBER"; }
+	[ "$SNAPSHOT_NUMBER" = "$SNAPSHOT_NUM" ] || { is_info && echo "(error)"; die "Meta-data \"num\" does not match at snapper snapshot number $SNAPSHOT_NUMBER"; }
 
-	SNAPSHOT_NUM=$(sed -n -e 's#^.*<num>\([^<]*\)</num>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER num: sed failed"; }
-	[ "$SNAPSHOT_NUMBER" = "$SNAPSHOT_NUM" ] || { is_info && echo "(error)"; die "Meta-data \"num\" does not match at snapper snapshot number $SNAPSHOT_NUMBER "; }
-
-	SNAPSHOT_DATE=$(sed -n -e 's#^.*<date>\([^<]*\)</date>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER date: sed failed"; }
-	SNAPSHOT_TYPE=$(sed -n -e 's#^.*<type>\([^<]*\)</type>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER type: sed failed"; }
-	SNAPSHOT_UID=$(sed -n -e 's#^.*<uid>\([^<]*\)</uid>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER uid: sed failed"; }
-	SNAPSHOT_DESCRIPTION=$(sed -n -e 's#^.*<description>\([^<]*\)</description>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER description: sed failed"; }
-
-	SNAPSHOT_CLEANUP=$(sed -n -e 's#^.*<cleanup>\([^<]*\)</cleanup>.*#\1#p' <"$SNAPSHOT_INFO") || { is_info && echo "(error)"; die "While extracting snapper snapshot number $SNAPSHOT_NUMBER cleanup policy: sed failed"; }
 	SKIP=0
 	for SKIP_CLEANUP in $SKIP_CLEANUPS
 	do
