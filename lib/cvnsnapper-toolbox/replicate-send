@@ -127,7 +127,7 @@ then
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 
 	CST_THIS_PROTO_MIN=0
-	CST_THIS_PROTO=2
+	CST_THIS_PROTO=3
 	CST_STATE_OTHER_PROTO=
 
 
@@ -157,6 +157,14 @@ then
 	CST_STATE_OTHER_PROTO="$CST_OTHER_PROTO"
 
 	echo "$CST_THIS_SIDE proto $CST_THIS_PROTO" >&"$CST_SSH_STDIN" || die "Couldn't send protocol message reply that we support \"proto\" (protocol number) \"$CST_THIS_PROTO\""
+
+
+	# Try to propagate verbose level to the other side.
+	if [ "$CST_STATE_OTHER_PROTO" -ge 3 ]
+	then
+		CST_VERBOSE="${CVNSNAPPER_TOOLBOX_VERBOSE:-0}"
+		echo "$CST_THIS_SIDE verbose $CST_VERBOSE" >&"$CST_SSH_STDIN" || die "Couldn't send protocol message that we want \"verbose\" (verbose level) \"$CST_VERBOSE\""
+	fi
 
 
 	# Read initial message.

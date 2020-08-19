@@ -22,7 +22,7 @@ CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
 
 CST_THIS_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 CST_THIS_PROTO_MIN=0
-CST_THIS_PROTO=2
+CST_THIS_PROTO=3
 
 
 [ "$#" -ge 1 ] || die "$CST_USAGE"
@@ -103,6 +103,15 @@ do
 		[ -z "$CST_OTHER_REST" ] || die "Invalid other side message: \"end\" message with trailing data..."
 		CST_GOT_END=1
 		CST_BREAK=1
+		;;
+	verbose)
+		# (Accept always, while the send side will try to only send it with protocol >= 3 ...)
+		read CST_OTHER_VERBOSE CST_OTHER_REST <<<"$CST_OTHER_REST"
+		[ -n "$CST_OTHER_VERBOSE" ] || die "Invalid other side message: \"$CST_OTHER_WHAT\" message missing verbose level"
+		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"$CST_OTHER_WHAT\" message with trailing data"
+		is_number "$CST_OTHER_VERBOSE" || die "Invalid other side message: \"$CST_OTHER_WHAT\" message verbose level fails to validate as number"
+		export CVNSNAPPER_TOOLBOX_VERBOSE="$CST_OTHER_VERBOSE"
+		msg_debug "Verbose level reached $CVNSNAPPER_TOOLBOX_VERBOSE"
 		;;
 	can)
 		read CST_REQUESTED_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
