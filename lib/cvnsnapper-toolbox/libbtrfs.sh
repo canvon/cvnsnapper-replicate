@@ -1,3 +1,5 @@
+# For VIM syntax highlighting: This is bash
+#
 # cvnsnapper-toolbox shell library libbtrfs.sh - btrfs helpers for cvnsnapper
 
 is_subvol() {

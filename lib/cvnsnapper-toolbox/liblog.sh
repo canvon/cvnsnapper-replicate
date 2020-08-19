@@ -1,3 +1,5 @@
+# For VIM syntax highlighting: This is bash
+#
 # cvnsnapper-toolbox shell library liblog.sh - logging for cvnsnapper
 
 # Note: There's a copy of msg_{debug,info}() in cvnsnapper front-end script,
