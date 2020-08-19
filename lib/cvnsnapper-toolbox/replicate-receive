@@ -48,19 +48,8 @@ protomsg_receivedUUID() {
 	[ -n "$CST_SNAPSHOT_NUMBER" ] || die "Can't send protocol message \"receivedUUID\" as the current snapshot number is not set"
 
 	CST_SNAP="$CST_OUTPUT_SNAPSHOTS/$CST_SNAPSHOT_NUMBER/snapshot"
-	CST_RECEIVED_UUID="$(btrfs subvolume show "$CST_SNAP" | sed -n -e 's/^\s*Received UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
-	[ "$CST_RECEIVED_UUID" = "-" ] && die "Failed to retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\": Invalid received UUID \"$CST_RECEIVED_UUID\""
-	if [ -z "$CST_RECEIVED_UUID" ]
-	then
-		# Work-around for older versions of btrfs command:
-
-		CST_UUID="$(btrfs subvolume show "$CST_SNAP" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
-		[ -n "$CST_UUID" ] || die "Failed to retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\", work-around for older btrfs command: Couldn't get UUID"
-
-		# -u: UUID, -R: received UUID
-		CST_RECEIVED_UUID="$(btrfs subvolume list -u -R "$CST_SNAP" | sed -n -e "s/.* received_uuid \\([-0-9a-f]*\\) uuid $CST_UUID .*/\\1/ip")"
-		[ -n "$CST_RECEIVED_UUID" ] || die "Failed to retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\", work-around for older btrfs command: Couldn't get received UUID"
-	fi
+	CST_RECEIVED_UUID="$(subvol_get_received_uuid "$CST_SNAP")" || die "Couldn't retrieve received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\""
+	[ "$CST_RECEIVED_UUID" = "-" ] && die "Received UUID for snapshot \"$CST_SNAPSHOT_NUMBER\" invalid: \"$CST_RECEIVED_UUID\""
 
 	echo "$CST_THIS_SIDE receivedUUID $CST_SNAPSHOT_NUMBER $CST_RECEIVED_UUID"
 }

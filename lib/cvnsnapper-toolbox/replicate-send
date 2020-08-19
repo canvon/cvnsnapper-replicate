@@ -168,24 +168,14 @@ then
 		CHECK_TEXT="connection between last output prefix snapshot and corresponding input snapshot"
 
 		OUT_SNAP="$OUTPUT_SNAPSHOTS/$LAST_SNAPSHOT_NUMBER_ARG/snapshot"
-		OUT_RECEIVED_UUID="$(btrfs subvolume show "$OUT_SNAP" | sed -n -e 's/^\s*Received UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
+		OUT_RECEIVED_UUID="$(subvol_get_received_uuid "$OUT_SNAP")" || die "Failed to sanity-check $CHECK_TEXT: Failed to get received UUID of last output prefix snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\""
 		[ "$OUT_RECEIVED_UUID" = "-" ] && die "Failed to sanity-check $CHECK_TEXT: Invalid received UUID \"$OUT_RECEIVED_UUID\" of last output prefix snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\""
-		if [ -z "$OUT_RECEIVED_UUID" ]
-		then
-			OUT_UUID="$(btrfs subvolume show "$OUT_SNAP" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
-			[ -n "$OUT_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get neither UUID nor received UUID of last output prefix snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\""
-
-			# -u: UUID, -R: received UUID
-			OUT_RECEIVED_UUID="$(btrfs subvolume list -u -R "$OUT_SNAP" | sed -n -e "s/.* received_uuid \\([-0-9a-f]*\\) uuid $OUT_UUID .*/\\1/ip")"
-			[ -n "$OUT_RECEIVED_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get last output prefix snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s received UUID, not even via fall-back method"
-		fi
 	fi
 fi
 
 case "$MODE" in
 remote|sendreceive)
-	IN_UUID="$(btrfs subvolume show "$LAST_SNAPSHOT_NUMBER_ARG/snapshot" | sed -n -e 's/^\s*UUID:\s*\([-0-9a-f]*\)$/\1/ip')"
-	[ -n "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s UUID"
+	IN_UUID="$(subvol_get_uuid "$LAST_SNAPSHOT_NUMBER_ARG/snapshot")" || die "Failed to sanity-check $CHECK_TEXT: Couldn't get input snapshot \"$LAST_SNAPSHOT_NUMBER_ARG\"'s UUID"
 
 	[ "$OUT_RECEIVED_UUID" = "$IN_UUID" ] || die "Failed to sanity-check $CHECK_TEXT: Received UUID \"$OUT_RECEIVED_UUID\" doesn't match UUID \"$IN_UUID\""
 	;;
