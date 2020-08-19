@@ -13,12 +13,15 @@ die() {
 
 
 CST_DIR="$(dirname "$0")"
+. "$CST_DIR/liblog.sh" || die "Failed to source shell library liblog.sh"
 . "$CST_DIR/libbtrfs.sh" || die "Failed to source shell library libbtrfs.sh"
 
 
 CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
 
 CST_THIS_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
+CST_THIS_PROTO_MIN=0
+CST_THIS_PROTO=1
 
 
 [ "$#" -ge 1 ] || die "$CST_USAGE"
@@ -57,9 +60,12 @@ protomsg_receivedUUID() {
 
 
 # Get the conversation going...
+echo "$CST_THIS_SIDE proto $CST_THIS_PROTO"
 echo "$CST_THIS_SIDE have $CST_SNAPSHOT_NUMBER"
 
 CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_SENDER"
+CST_STATE_OTHER_PROTO=
+CST_STATE_OTHER_MSGNUM=0
 
 CST_RECEIVED_SNAPNUMS=
 
@@ -67,9 +73,30 @@ CST_GOT_END=
 while read CST_OTHER_SIDE CST_OTHER_WHAT CST_OTHER_REST
 do
 	[ "$CST_OTHER_SIDE" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_SIDE\" (expected \"$CST_EXPECTED_OTHER_SIDE\")"
+	: $((CST_STATE_OTHER_MSGNUM++))
 
 	CST_BREAK=
 	case "$CST_OTHER_WHAT" in
+	proto)
+		read CST_OTHER_PROTO CST_OTHER_REST <<<"$CST_OTHER_REST"
+		[ -n "$CST_OTHER_PROTO" ] || die "Invalid other side message: \"proto\" message missing protocol number..."
+		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"proto\" message with trailing data..."
+		# TODO: Validate as number, and only a number.
+
+		[ "$CST_STATE_OTHER_MSGNUM" -eq 1 ] || die "Other side protocol message must be first message!"
+		[ -z "$CST_STATE_OTHER_PROTO" ] || die "Other side protocol has already been set! (to \"$CST_STATE_OTHER_PROTO\")"
+		if [ "$CST_OTHER_PROTO" = "$CST_THIS_PROTO" ]
+		then
+			msg_debug "Other side's protocol \"$CST_OTHER_PROTO\" matches our side \"$CST_THIS_PROTO\""
+		elif [ "$CST_OTHER_PROTO" -lt "$CST_THIS_PROTO" ]
+		then
+			msg_debug "Other side's protocol \"$CST_OTHER_PROTO\" is less than our side \"$CST_THIS_PROTO\""
+			[ "$CST_OTHER_PROTO" -ge "$CST_THIS_PROTO_MIN" ] || die "Other side's protocol \"$CST_OTHER_PROTO\" is less than our side's minimum \"$CST_THIS_PROTO_MIN\", aborting"
+		else
+			die "Other side's protocol \"$CST_OTHER_PROTO\" not supported"
+		fi
+		CST_STATE_OTHER_PROTO="$CST_OTHER_PROTO"
+		;;
 	end)
 		[ -z "$CST_OTHER_REST" ] || die "Invalid other side message: \"end\" message with trailing data..."
 		CST_GOT_END=1

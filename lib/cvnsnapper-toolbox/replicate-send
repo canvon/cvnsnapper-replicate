@@ -121,6 +121,34 @@ then
 	CST_THIS_SIDE="CVNSNAPPER_REPLICATE_SENDER"
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 
+	CST_THIS_PROTO_MIN=0
+	CST_THIS_PROTO=1
+	CST_STATE_OTHER_PROTO=
+
+
+	# Read pre-initial (protocol version) message.
+	read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read pre-initial message from remote host"
+
+	[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
+	[ "$CST_OTHER_WHAT" = "proto" ] || die "Unexpected initial message from other side: \"$CST_OTHER_WHAT\""
+
+	read CST_OTHER_PROTO CST_OTHER_REST <<<"$CST_OTHER_REST"
+	[ -n "$CST_OTHER_PROTO" ] || die "Invalid other side message: \"proto\" message missing protocol number..."
+	[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"proto\" message with trailing data..."
+	# TODO: Validate as number, and only a number.
+
+	if [ "$CST_OTHER_PROTO" = "$CST_THIS_PROTO" ]
+	then
+		msg_debug "Other side's protocol \"$CST_OTHER_PROTO\" matches our side \"$CST_THIS_PROTO\""
+	elif [ "$CST_OTHER_PROTO" -lt "$CST_THIS_PROTO" ]
+	then
+		msg_debug "Other side's protocol \"$CST_OTHER_PROTO\" is less than our side \"$CST_THIS_PROTO\""
+		[ "$CST_OTHER_PROTO" -ge "$CST_THIS_PROTO_MIN" ] || die "Other side's protocol \"$CST_OTHER_PROTO\" is less than our side's minimum \"$CST_THIS_PROTO_MIN\", aborting"
+	else
+		die "Other side's protocol \"$CST_OTHER_PROTO\" not supported"
+	fi
+	CST_STATE_OTHER_PROTO="$CST_OTHER_PROTO"
+
 
 	# Read initial message.
 	read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read initial message from remote host"
