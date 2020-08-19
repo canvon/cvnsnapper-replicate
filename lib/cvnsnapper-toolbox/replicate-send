@@ -166,7 +166,7 @@ then
 
 	read CST_OTHER_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
 	[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Missing snapshot number"
-	[ -n "$CST_OTHER_REST" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Trailing data"
+	[ -n "$CST_OTHER_REST" ] && die "Invalid \"$CST_OTHER_WHAT\" message: Trailing data"
 	is_number "$CST_OTHER_SNAPSHOT_NUMBER" || die "Invalid \"$CST_OTHER_WHAT\" message: Snapshot number validation failed: Does not seem to be a number"
 
 	msg_info "Remote \"have\" snapshot number $CST_OTHER_SNAPSHOT_NUMBER"
@@ -205,9 +205,10 @@ then
 	[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
 	[ "$CST_OTHER_WHAT" = "receivedUUID" ] || die "Unexpected 2nd message from other side: \"$CST_OTHER_WHAT\""
 
-	read CST_OTHER_SNAPSHOT_NUMBER OUT_RECEIVED_UUID <<<"$CST_OTHER_REST"
+	read CST_OTHER_SNAPSHOT_NUMBER OUT_RECEIVED_UUID CST_OTHER_REST <<<"$CST_OTHER_REST"
 	[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Incomplete 2nd message from other side: Received UUID snapshot number missing!"
 	[ -n "$OUT_RECEIVED_UUID" ] || die "Incomplete 2nd message from other side: Received UUID missing!"
+	[ -n "$CST_OTHER_REST" ] && die "Incomplete 2nd message from other side: Trailing data"
 	is_number "$CST_OTHER_SNAPSHOT_NUMBER" || die "Invalid 2nd message from other side: Received UUID snapshot number fails validation as number!"
 	[ "$CST_OTHER_SNAPSHOT_NUMBER" = "$LAST_SNAPSHOT_NUMBER_ARG" ] || die "2nd message received UUID snapshot number \"$CST_OTHER_SNAPSHOT_NUMBER\" to our last snapshot number argument \"$LAST_SNAPSHOT_NUMBER_ARG\" mismatch, aborting"
 
@@ -385,8 +386,14 @@ do
 			read CST_OTHER_WHO CST_OTHER_WHAT CST_OTHER_REST <&"$CST_SSH_STDOUT" || die "Couldn't read send stream response message from remote host"
 			[ "$CST_OTHER_WHO" = "$CST_EXPECTED_OTHER_SIDE" ] || die "Invalid other side message: By \"$CST_OTHER_WHO\""
 			[ "$CST_OTHER_WHAT" = "receivedUUID" ] || die "Unexpected send stream response message from other side: \"$CST_OTHER_WHAT\""
-			OUT_RECEIVED_UUID="$CST_OTHER_REST"
-			[ -n "$OUT_RECEIVED_UUID" ] || die "Incomplete send stream response message from other side: Received UUID missing!"
+
+			read CST_OTHER_SNAPSHOT_NUMBER CST_OTHER_RECEIVED_UUID CST_OTHER_REST <<<"$CST_OTHER_REST"
+			[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Snapshot number is missing"
+			[ -n "$CST_OTHER_RECEIVED_UUID" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Received UUID is missing"
+			[ -n "$CST_OTHER_REST" ] && die "Invalid \"$CST_OTHER_WHAT\" message: Trailing data"
+			is_number "$CST_OTHER_SNAPSHOT_NUMBER" || die "Invalid \"$CST_OTHER_WHAT\" message: Snapshot number fails validation as number!"
+
+			# TODO: Check snapshot number against what we send?
 			# TODO: Check received UUID against UUID of subvol we wanted to send?
 			;;
 		*)
