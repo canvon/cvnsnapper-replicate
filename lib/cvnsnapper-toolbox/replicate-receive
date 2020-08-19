@@ -61,6 +61,8 @@ echo "$CST_THIS_SIDE have $CST_SNAPSHOT_NUMBER"
 
 CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_SENDER"
 
+CST_RECEIVED_SNAPNUMS=
+
 CST_GOT_END=
 while read CST_OTHER_SIDE CST_OTHER_WHAT CST_OTHER_REST
 do
@@ -94,6 +96,7 @@ do
 		btrfs receive -e "$CST_OUTPUT_SNAPSHOT_DIR/" >&2 || die "Receiving snapshot \"$CST_RECEIVE_SNAPSHOT_NUMBER\": Failed in \"btrfs receive\""
 		# ^ The -e lets btrfs receive end at an end-marker, instead of only on EOF (which we don't have).
 		#   The >&2 is an attempt to get the "At ..." message to the error stream, where it won't gobble up our protocol messages.
+		CST_RECEIVED_SNAPNUMS="$CST_RECEIVED_SNAPNUMS $CST_RECEIVE_SNAPSHOT_NUMBER"
 		CST_SNAPSHOT_NUMBER="$CST_RECEIVE_SNAPSHOT_NUMBER"
 		protomsg_receivedUUID || die "Error in sending our next protocol message \"receivedUUID\" (after \"receive\"), aborting"
 		;;
@@ -104,10 +107,25 @@ do
 	[ -n "$CST_BREAK" ] && break
 done
 
-[ -n "$CST_GOT_END" ] || die "Other side terminated without sending proper end message! Aborting post-operation..."
+if [ -z "$CST_GOT_END" ]
+then
+	# (Use warn although this is normal output, to not confuse the message protocol...)
+	warn "Failing main operation. Received:${CST_RECEIVED_SNAPNUMS:- (none)}"
+
+	die "Other side terminated without sending proper end message! Aborting (potential) post-operation..."
+else
+	# (Use warn although this is normal output, to not confuse the message protocol...)
+	warn "Finished main operation. Received:${CST_RECEIVED_SNAPNUMS:- (none)}"
+fi
 
 
-# TODO: Post-operation... (See replicate-send.)
+# Post-operation. (As at the ~end of replicate-send.)
+if [ -n "$CST_RECEIVED_SNAPNUMS" ]
+then
+	# Update the active subvol with the last received snapshot,
+	# hanging the .snapshots subvol into there.
+	"$CST_DIR/replace-active" "$CST_OUTPUT_SUBVOL" "$CST_SNAPSHOT_NUMBER" || die "Post-operation: Failed to update output active subvolume at \"$CST_OUTPUT_SUBVOL\""
+fi
 
 
 exit 0
