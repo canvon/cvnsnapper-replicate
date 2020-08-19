@@ -163,14 +163,36 @@ then
 	read CST_OTHER_SNAPSHOT_NUMBER CST_OTHER_REST <<<"$CST_OTHER_REST"
 	[ -n "$CST_OTHER_SNAPSHOT_NUMBER" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Missing snapshot number"
 	[ -n "$CST_OTHER_REST" ] || die "Invalid \"$CST_OTHER_WHAT\" message: Trailing data"
+	is_number "$CST_OTHER_SNAPSHOT_NUMBER" || die "Invalid \"$CST_OTHER_WHAT\" message: Snapshot number validation failed: Does not seem to be a number"
+
+	msg_info "Remote \"have\" snapshot number $CST_OTHER_SNAPSHOT_NUMBER"
 
 	if [ -z "$LAST_SNAPSHOT_NUMBER_ARG" ]
 	then
-		LAST_SNAPSHOT_NUMBER_ARG="$CST_OTHER_SNAPSHOT_NUMBER"
+		# The other side "have" some snapshot,
+		# but "can" we do it at all?
+		CST_FOUND=
+		CST_SNAPNUM="$CST_OTHER_SNAPSHOT_NUMBER"
+		while [ "$CST_SNAPNUM" -ge 1 ]
+		do
+			if is_snapper_snapshot "$CST_SNAPNUM"
+			then
+				msg_debug "Search for last snapshot number: Found valid snapshot number $CST_SNAPNUM"
+				CST_FOUND=1
+				break
+			fi
+
+			: $((CST_SNAPNUM--))
+		done
+		[ -n "$CST_FOUND" ] || die "Unable to find a snapshot number less or equal to remote's $CST_OTHER_SNAPSHOT_NUMBER, aborting"
+
+		LAST_SNAPSHOT_NUMBER_ARG="$CST_SNAPNUM"
 	else
 		[ "$CST_OTHER_SNAPSHOT_NUMBER" -eq "$LAST_SNAPSHOT_NUMBER_ARG" ] || warn "Warning: Snapshot number the remote has, \"$CST_OTHER_SNAPSHOT_NUMBER\", and that we will be using, \"$LAST_SNAPSHOT_NUMBER_ARG\", don't match"
 	fi
 
+	is_snapper_snapshot "$LAST_SNAPSHOT_NUMBER_ARG" || die "Was going to announce to remote that we \"can\" snapshot number $LAST_SNAPSHOT_NUMBER_ARG, but there does not seem to be such a snapper snapshot! Aborting"
+	msg_info "Local side \"can\" snapshot number $LAST_SNAPSHOT_NUMBER_ARG"
 	echo "$CST_THIS_SIDE can $LAST_SNAPSHOT_NUMBER_ARG" >&"$CST_SSH_STDIN" || die "Couldn't send protocol message reply that we \"can\" snapshot number \"$LAST_SNAPSHOT_NUMBER_ARG\""
 
 

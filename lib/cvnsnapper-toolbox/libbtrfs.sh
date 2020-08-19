@@ -2,6 +2,21 @@
 #
 # cvnsnapper-toolbox shell library libbtrfs.sh - btrfs helpers for cvnsnapper
 
+is_number() {
+	if ! [ "$#" -eq 1 ]
+	then
+		warn "Internal problem: is_number called with argument count $# instead of 1; returning false"
+		return 1
+	fi
+
+	local CST_NUMBER_MAYBE="$1"; shift
+
+	grep -q -E "^(0|[1-9][0-9]*)$" <<<"$CST_NUMBER_MAYBE" || return 1
+	[ "$(wc -l <<<"$CST_NUMBER_MAYBE")" = 1 ] || return 1
+
+	return 0
+}
+
 is_subvol() {
 	if ! [ "$#" -eq 1 ]
 	then
@@ -14,6 +29,22 @@ is_subvol() {
 	[ -d "$CST_SUBVOL_MAYBE" ] || return 1
 
 	[ "$(stat -c '%i' "$CST_SUBVOL_MAYBE")" = 256 ] || return 1
+
+	return 0
+}
+
+is_snapper_snapshot() {
+	if ! [ "$#" -eq 1 ]
+	then
+		warn "Internal problem: is_snapper_snapshot called with argument count $# instead of 1; returning false"
+		return 1
+	fi
+
+	local CST_SNAPNUM_MAYBE="$1"; shift
+
+	[ -d      "$CST_SNAPNUM_MAYBE"          ] || return 1
+	is_subvol "$CST_SNAPNUM_MAYBE/snapshot"   || return 1
+	[ -f      "$CST_SNAPNUM_MAYBE/info.xml" ] || return 1
 
 	return 0
 }
