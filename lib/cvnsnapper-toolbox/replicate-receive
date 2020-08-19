@@ -15,6 +15,7 @@ die() {
 CST_DIR="$(dirname "$0")"
 . "$CST_DIR/liblog.sh" || die "Failed to source shell library liblog.sh"
 . "$CST_DIR/libbtrfs.sh" || die "Failed to source shell library libbtrfs.sh"
+. "$CST_DIR/libsnapper.sh" || die "Failed to source shell library libsnapper.sh"
 
 
 CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
@@ -109,7 +110,50 @@ do
 		[ -n "$CST_OTHER_REST" ] && die "Invalid other side message: \"can\" message with trailing data..."
 		is_number "$CST_REQUESTED_SNAPSHOT_NUMBER" || die "Invalid other side message: \"can\" message snapshot number fails validation as number!"
 
-		[ "$CST_REQUESTED_SNAPSHOT_NUMBER" = "$CST_SNAPSHOT_NUMBER" ] || die "Backing off to more older snapshots not supported, yet!"
+		if [ "$CST_REQUESTED_SNAPSHOT_NUMBER" = "$CST_SNAPSHOT_NUMBER" ]
+		then
+			msg_debug "Other side \"can\" same snapshot as we were at, $CST_SNAPSHOT_NUMBER"
+		elif [ "$CST_REQUESTED_SNAPSHOT_NUMBER" -lt "$CST_SNAPSHOT_NUMBER" ]
+		then
+			msg_debug "Other side \"can\" only snapshot $CST_REQUESTED_SNAPSHOT_NUMBER, while we're at $CST_SNAPSHOT_NUMBER. Backing off to more older snapshots..."
+			CST_CONTEXT_TEXT="Backing off from our snapshot $CST_SNAPSHOT_NUMBER to reach other side's \"can\" $CST_REQUESTED_SNAPSHOT_NUMBER"
+			CST_FOUND=
+			CST_SEARCH_SNAPNUM="$CST_SNAPSHOT_NUMBER"
+			while [ "$CST_SEARCH_SNAPNUM" -gt "$CST_REQUESTED_SNAPSHOT_NUMBER" ]
+			do
+				: $((CST_SEARCH_SNAPNUM--))
+
+				CST_SEARCH_SNAPSHOT_DIR="$CST_OUTPUT_SNAPSHOTS/$CST_SEARCH_SNAPNUM"
+				[ -d "$CST_SEARCH_SNAPSHOT_DIR" ] || continue  # Not present at all.
+
+				if [ "$CST_SEARCH_SNAPNUM" -eq "$CST_REQUESTED_SNAPSHOT_NUMBER" ]
+				then
+					is_subvol "$CST_SEARCH_SNAPSHOT_DIR/snapshot" || break
+
+					CST_FOUND=1
+					break
+				fi
+
+				SNAPSHOT_INFO="$CST_SEARCH_SNAPSHOT_DIR/info.xml"
+				[ -f "$SNAPSHOT_INFO" ] || die "$CST_CONTEXT_TEXT failed: snapper snapshot info.xml \"$SNAPSHOT_INFO\" missing"
+				parse_snapper_info || die "$CST_CONTEXT_TEXT failed: Failed to parse snapper snapshot info.xml: \"$SNAPSHOT_INFO\""
+
+				[ "$SNAPSHOT_NUM" = "$CST_SEARCH_SNAPNUM" ] || die "$CST_CONTEXT_TEXT failed: snapper snapshot number $CST_SEARCH_SNAPNUM gave number \"$SNAPSHOT_NUM\" in info.xml: \"$SNAPSHOT_INFO\""
+
+				case "$SNAPSHOT_CLEANUP" in
+				timeline|number)
+					# Allow skipping this snapshot.
+					continue
+					;;
+				esac
+				die "$CST_CONTEXT_TEXT failed: Unsuitable (unskippable) snapshot number $CST_SEARCH_SNAPNUM found, aborting"
+			done
+			[ -n "$CST_FOUND" ] || die "$CST_CONTEXT_TEXT failed: Requested snapshot not found"
+			msg_info "Backing off from our snapshot $CST_SNAPSHOT_NUMBER to $CST_SEARCH_SNAPNUM after other side's \"can\" $CST_REQUESTED_SNAPSHOT_NUMBER"
+			CST_SNAPSHOT_NUMBER="$CST_SEARCH_SNAPNUM"
+		else
+			die "Other side \"can\" only snapshot $CST_REQUESTED_SNAPSHOT_NUMBER, while we're still at $CST_SNAPSHOT_NUMBER; impossible(?), aborting"
+		fi
 		protomsg_receivedUUID || die "Error in sending our next protocol message \"receivedUUID\" (after \"can\"), aborting"
 		;;
 	receive)
