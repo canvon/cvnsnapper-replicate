@@ -128,6 +128,9 @@ then
 	exec {CST_SSH_STDOUT}<&0 || die "Couldn't duplicate main() stdin for continued reading from SSH"
 	exec 0<&- || die "Couldn't close main() stdin from SSH"
 
+	exec {CST_SSH_STDIN}<>"$CST_TMP_DIR/ssh_stdin" || die "SSH input redirection failed"
+	[ -n "$CST_SSH_STDIN" ] || die "Couldn't get SSH stdin fd redirection: Result is empty"
+
 	CST_THIS_SIDE="CVNSNAPPER_REPLICATE_SENDER"
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 
@@ -436,13 +439,8 @@ then
 	[ -n "$CST_TMP_DIR" ] || die "Couldn't create temporary directory for named pipes for SSH redirection: Result was empty"
 	[ -d "$CST_TMP_DIR" ] || die "Couldn't create temporary directory for named pipes for SSH redirection: Is not a directory: \"$CST_TMP_DIR\""
 	mkfifo --mode="700" "$CST_TMP_DIR/ssh_stdin"  || die "Couldn't create named pipe for SSH input redirection"
-	#mkfifo --mode="700" "$CST_TMP_DIR/ssh_stdout" || die "Couldn't create named pipe for SSH output redirection"
 
 	# Spawn SSH to other host.
-	exec {CST_SSH_STDIN}<>"$CST_TMP_DIR/ssh_stdin" || die "SSH input redirection failed"
-	[ -n "$CST_SSH_STDIN"  ] || die "Couldn't get SSH stdin fd redirection: Result is empty"
-	#exec {CST_SSH_STDOUT}<>"$CST_TMP_DIR/ssh_stdout" || die "SSH output redirection failed"
-	#[ -n "$CST_SSH_STDOUT" ] || die "Couldn't get SSH stdout fd redirection: Result is empty"
 	${CVNSNAPPER_TOOLBOX_SSH:-ssh} \
 		"$REMOTE_HOST" \
 		${CVNSNAPPER_TOOLBOX_REMOTE_COMMAND:-cvnsnapper replicate-receive} "$OUTPUT_PREFIX" \
