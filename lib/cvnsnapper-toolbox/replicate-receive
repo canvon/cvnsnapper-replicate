@@ -18,18 +18,73 @@ CST_DIR="$(dirname "$0")"
 . "$CST_DIR/libsnapper.sh" || die "Failed to source shell library libsnapper.sh"
 
 
-CST_USAGE="Usage: $0 OUTPUT_SUBVOL"
+CST_USAGE="Usage: $0 OUTPUT_SUBVOL_CANDIDATES"
 
 CST_THIS_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
 CST_THIS_PROTO_MIN=0
 CST_THIS_PROTO=3
 
 
+# Parse (supposedly) forced-command command-line.
+
+while [ "$#" -ge 1 ] && [ "${1:0:1}" = "-" ]
+do
+	CST_OPT="$1"
+	case "$CST_OPT" in
+	--usage|--help)
+		echo "$CST_USAGE"
+		exit 0
+		;;
+	*)
+		die "Unrecognized command-line option \"$CST_OPT\", aborting"
+		;;
+	esac
+done
+
 [ "$#" -ge 1 ] || die "$CST_USAGE"
 
-CST_OUTPUT_SUBVOL="$1"; shift
+# "$@" should now contain a list of allowed subvolumes; used further below.
 
-[ "$#" -eq 0 ] || die "Too many arguments! $CST_USAGE"
+
+# Parse original command command-line.
+
+[ -n "$SSH_ORIGINAL_COMMAND" ] || die "Missing original command in environment"
+
+read CST_REMOTE_CMD CST_REMOTE_REST <<<"$SSH_ORIGINAL_COMMAND"
+[ -n "$CST_REMOTE_CMD" ] || die "Missing original command name"
+CST_REMOTE_CMD_BASENAME="${CST_REMOTE_CMD##*/}"
+CST_THIS_CMD_BASENAME="${0##*/}"
+[ "$CST_REMOTE_CMD_BASENAME" = "$CST_THIS_CMD_BASENAME" ] || die "This forced-command based invocation of $CST_THIS_CMD_BASENAME does not seem to be what the other side is requesting: \"$CST_REMOTE_CMD_BASENAME\""
+[ -n "$CST_REMOTE_REST" ] || die "Original command is missing further arguments; should be specifying the path to an allowed snapper-style subvolume"
+
+CST_REMOTE_REQSUBVOL=
+while [ -n "$CST_REMOTE_REST" ] && read CST_REMOTE_ARG CST_REMOTE_REST <<<"$CST_REMOTE_REST"
+do
+	case "$CST_REMOTE_ARG" in
+	-*)
+		die "Unrecognized command-line option in original command: \"$CST_REMOTE_ARG\""
+		;;
+	*)
+		[ -n "$CST_REMOTE_REQSUBVOL" ] && die "Original command tries to specify requested subvolume twice: \"$CST_REMOTE_REQSUBVOL\" and \"$CST_REMOTE_ARG\". Aborting"
+		CST_REMOTE_REQSUBVOL="$CST_REMOTE_ARG"
+		;;
+	esac
+done
+
+
+# Now, check the remote-requested subvolume against forced-command allowed ones.
+
+CST_OUTPUT_SUBVOL=
+for CST_ALLOWED_SUBVOL
+do
+	if [ "$CST_ALLOWED_SUBVOL" = "$CST_REMOTE_REQSUBVOL" ]
+	then
+		CST_OUTPUT_SUBVOL="$CST_REMOTE_REQSUBVOL"
+		break
+	fi
+done
+
+[ -n "$CST_OUTPUT_SUBVOL" ] || die "Remote-requested subvolume \"$CST_REMOTE_REQSUBVOL\" not in the list of allowed subvolumes!"
 
 
 is_subvol "$CST_OUTPUT_SUBVOL" || die "Output subvolume is not a subvolume: \"$CST_OUTPUT_SUBVOL\""
