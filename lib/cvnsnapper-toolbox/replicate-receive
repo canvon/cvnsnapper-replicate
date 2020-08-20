@@ -53,6 +53,16 @@ done
 read CST_REMOTE_CMD CST_REMOTE_REST <<<"$SSH_ORIGINAL_COMMAND"
 [ -n "$CST_REMOTE_CMD" ] || die "Missing original command name"
 CST_REMOTE_CMD_BASENAME="${CST_REMOTE_CMD##*/}"
+
+if [ "$CST_REMOTE_CMD_BASENAME" = "cvnsnapper" ]  # Front-end script
+then
+	[ -n "$CST_REMOTE_REST" ] || die "Missing original command cvnsnapper sub-command name"
+
+	read CST_REMOTE_CMD CST_REMOTE_REST <<<"$CST_REMOTE_REST"
+	[ -n "$CST_REMOTE_CMD" ] || die "Missing original command cvnsnapper sub-command name"
+	CST_REMOTE_CMD_BASENAME="${CST_REMOTE_CMD##*/}"
+fi
+
 CST_THIS_CMD_BASENAME="${0##*/}"
 [ "$CST_REMOTE_CMD_BASENAME" = "$CST_THIS_CMD_BASENAME" ] || die "This forced-command based invocation of $CST_THIS_CMD_BASENAME does not seem to be what the other side is requesting: \"$CST_REMOTE_CMD_BASENAME\""
 [ -n "$CST_REMOTE_REST" ] || die "Original command is missing further arguments; should be specifying the path to an allowed snapper-style subvolume"
