@@ -72,7 +72,7 @@ if [ -d "$CST_NEW_SNAPSHOTS" ]
 then
 	rmdir "$CST_NEW_SNAPSHOTS" || die "Removing (supposedly) empty subvolume-placeholder directory \"$CST_NEW_SNAPSHOTS\" failed"
 fi
-mv "$CST_ACTIVE_SUBVOL/.snapshots" "$CST_NEW_SUBVOL/" || die "Hanging snapper .snapshots subvolume into snapshot of replacement snapshot failed"
+mv -v "$CST_ACTIVE_SUBVOL/.snapshots" "$CST_NEW_SUBVOL/" || die "Hanging snapper .snapshots subvolume into snapshot of replacement snapshot failed"
 ATTENTION="ATTENTION: snapper .snapshots subvolume has already been hung into \"$CST_NEW_SUBVOL/\"!"
 
 # TODO: Maybe not so drastical?
@@ -81,7 +81,7 @@ ATTENTION="ATTENTION: snapper .snapshots subvolume has already been hung into \"
 # TODO: Check whether there are no (maybe) child subvolumes left?
 #   (Via btrfs subvolume list? + match for subvol ID or UUID...)
 btrfs subvolume delete "$CST_ACTIVE_SUBVOL" || die "Deleting previous active subvolume failed. $ATTENTION"
-mv "$CST_NEW_SUBVOL" "$CST_ACTIVE_SUBVOL" || die "Placing replacement active subvolume at old name failed. $ATTENTION"
+mv -v "$CST_NEW_SUBVOL" "$CST_ACTIVE_SUBVOL" || die "Placing replacement active subvolume at old name failed. $ATTENTION"
 
 btrfs property set "$CST_ACTIVE_SUBVOL" ro true || die "Couldn't set replacement active subvolume read-only; but would be necessary for next $0 run"
 
