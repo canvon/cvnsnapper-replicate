@@ -9,11 +9,15 @@ warn() {
 die() {
 	warn "Fatal: $*"
 
-	# Close SSH stdin pipe fd, to allow the connection to die.
+	# Close SSH stdin/stdout pipe fd, to allow the connection to die.
 	# (But, in fact, doesn't seem to help. ..?)
 	if [ -n "$CST_SSH_STDIN" ]
 	then
 		exec {CST_SSH_STDIN}>&- || warn "Failed to close SSH standard input"
+	fi
+	if [ -n "$CST_SSH_STDOUT" ]
+	then
+		exec {CST_SSH_STDOUT}<&- || warn "Failed to close SSH standard output"
 	fi
 
 	exit 1
@@ -122,6 +126,7 @@ main() {
 if [ "$MODE" = "remote" ]
 then
 	exec {CST_SSH_STDOUT}<&0 || die "Couldn't duplicate main() stdin for continued reading from SSH"
+	exec 0<&- || die "Couldn't close main() stdin from SSH"
 
 	CST_THIS_SIDE="CVNSNAPPER_REPLICATE_SENDER"
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
