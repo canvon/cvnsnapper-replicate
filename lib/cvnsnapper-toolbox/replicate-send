@@ -128,8 +128,8 @@ then
 	exec {CST_SSH_STDOUT}<&0 || die "Couldn't duplicate main() stdin for continued reading from SSH"
 	exec 0<&- || die "Couldn't close main() stdin from SSH"
 
-	exec {CST_SSH_STDIN}<>"$CST_TMP_DIR/ssh_stdin" || die "SSH input redirection failed"
-	[ -n "$CST_SSH_STDIN" ] || die "Couldn't get SSH stdin fd redirection: Result is empty"
+	exec {CST_SSH_STDIN}>"$CST_TMP_DIR/ssh_stdin" || die "Opening SSH named-pipe input from main() failed"
+	[ -n "$CST_SSH_STDIN" ] || die "Couldn't get SSH named-pipe stdin fd redirection from main(): Result is empty"
 
 	CST_THIS_SIDE="CVNSNAPPER_REPLICATE_SENDER"
 	CST_EXPECTED_OTHER_SIDE="CVNSNAPPER_REPLICATE_RECEIVER"
