@@ -1,0 +1,20 @@
+# Start several cvnsnapper replicate oneshot services.
+#
+# Try to hook up to after snapper-cleanup timer run,
+# then wait for that to finish before running the replication.
+#
+# This is supposed to work on Debian 9 "stretch".
+
+[Unit]
+Description=cvnsnapper replicate
+After=snapper-cleanup.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c 'while systemctl --quiet is-active snapper-cleanup.service; do sleep 60; done'
+ExecStart=/bin/systemctl start cvnsnapper-replicate-canvon_foo.service
+#ExecStart=/bin/systemctl start cvnsnapper-replicate-canvon_bar.service
+#ExecStart=...
+
+[Install]
+WantedBy=snapper-cleanup.service

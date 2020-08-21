@@ -1,0 +1,7 @@
+[Unit]
+Description=cvnsnapper replicate canvon/foo to backupserver
+
+[Service]
+Type=oneshot
+WorkingDirectory=/srv/laptop/canvon/foo/.snapshots
+ExecStart=/usr/local/bin/cvnsnapper replicate-send --remote=backupserver /srv/backupserver/canvon/mirror/foo
