@@ -1,0 +1,2 @@
+# Something like this is supposed to work on Debian 8 "jessie", with OpenSSH sshd 6.7p1
+command="/usr/local/lib/cvnsnapper-toolbox/replicate-receive /srv/backupserver/canvon/mirror/{foo,bar}",no-agent-forwarding,no-port-forwarding,no-pty,no-user-rc,no-X11-forwarding,from="192.168.Y.Z,fdXX:XXXX:XXXX:YYYY::Z" ssh-ed25519 [...]
